@@ -808,6 +808,7 @@
     still.width = video.videoWidth;
     still.height = video.videoHeight;
     still.getContext('2d').drawImage(video, 0, 0);
+    cam.crop = guideRectInVideo(video);
     const f = document.createElement('div');
     f.className = 'flash';
     $('camera').append(f);
@@ -822,11 +823,30 @@
     $('cam-video').play().catch(() => {});
   }
 
+  // 把畫面上的取景框換算成影片像素座標，外擴一點留給自動裁切找邊緣
+  function guideRectInVideo(video) {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const er = video.getBoundingClientRect();
+    const g = $('cam-guide').getBoundingClientRect();
+    const scale = Math.min(er.width / vw, er.height / vh); // object-fit: contain
+    const offX = er.left + (er.width - vw * scale) / 2;
+    const offY = er.top + (er.height - vh * scale) / 2;
+    const m = 0.08 * Math.max(g.width, g.height);
+    let x0 = (g.left - m - offX) / scale, y0 = (g.top - m - offY) / scale;
+    let x1 = (g.right + m - offX) / scale, y1 = (g.bottom + m - offY) / scale;
+    x0 = Math.max(0, Math.round(x0)); y0 = Math.max(0, Math.round(y0));
+    x1 = Math.min(vw, Math.round(x1)); y1 = Math.min(vh, Math.round(y1));
+    if (x1 - x0 < 50 || y1 - y0 < 50) return null;
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+
   function onUsePhoto() {
     const still = $('cam-still');
+    // 只保留取景框附近的畫面
+    const r = cam.crop || { x: 0, y: 0, w: still.width, h: still.height };
     const copy = document.createElement('canvas');
-    copy.width = still.width; copy.height = still.height;
-    copy.getContext('2d').drawImage(still, 0, 0);
+    copy.width = r.w; copy.height = r.h;
+    copy.getContext('2d').drawImage(still, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
     closeCamera();
     processImage(copy);
   }
