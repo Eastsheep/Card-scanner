@@ -2,100 +2,196 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>名片掃描</title>
   <meta name="description" content="拍照掃描名片，資料只存在你的手機上，可一鍵匯出 CSV。">
-  <meta name="theme-color" content="#1f4e79">
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="名片掃描">
+  <meta name="format-detection" content="telephone=no">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- 名片列表 -->
+  <!-- SVG 圖示 -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-camera" viewBox="0 0 24 24"><path d="M9 4.5h6l1.6 2.2H20a1.5 1.5 0 0 1 1.5 1.5v10.3A1.5 1.5 0 0 1 20 20H4a1.5 1.5 0 0 1-1.5-1.5V8.2A1.5 1.5 0 0 1 4 6.7h3.4L9 4.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+      <symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="8.5" cy="9.5" r="1.7" fill="currentColor"/><path d="m4 17.5 5-5 3.5 3.5 2.5-2.5 5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+      <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L19.3 8.7a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m13.5 6.5 4 4" stroke="currentColor" stroke-width="1.8"/></symbol>
+      <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10.5H6.5A1.5 1.5 0 0 0 5 12v7.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V12a1.5 1.5 0 0 0-1.5-1.5H16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15 15 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 4.5 7.5 12l7.5 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-phone" viewBox="0 0 24 24"><path d="M6.6 3.5h2.6l1.6 4.3-2.1 1.4a11.5 11.5 0 0 0 6.1 6.1l1.4-2.1 4.3 1.6v2.6a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.6 5.7a2 2 0 0 1 2-2.2Z" fill="currentColor"/></symbol>
+      <symbol id="i-msg" viewBox="0 0 24 24"><path d="M12 4c4.7 0 8.5 3.1 8.5 7s-3.8 7-8.5 7c-.9 0-1.8-.1-2.6-.3L5 19.5l1.2-3.5A6.6 6.6 0 0 1 3.5 11c0-3.9 3.8-7 8.5-7Z" fill="currentColor"/></symbol>
+      <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2.2" fill="currentColor"/><path d="m4 7 8 6 8-6" fill="none" stroke="var(--mail-stroke, #fff)" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+      <symbol id="i-map" viewBox="0 0 24 24"><path d="M12 21.5s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0c0 5-6.5 11.2-6.5 11.2Z" fill="currentColor"/><circle cx="12" cy="10.3" r="2.4" fill="var(--mail-stroke, #fff)"/></symbol>
+      <symbol id="i-contact" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 20c.8-3.6 3.8-5.5 7.5-5.5s6.7 1.9 7.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+      <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19.5 4v4.5H15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+      <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    </defs>
+  </svg>
+
+  <!-- ========== 名片列表 ========== -->
   <section id="view-list" class="view">
-    <header class="topbar">
-      <div>
-        <h1>名片夾</h1>
-        <p class="sub" id="count">0 張名片</p>
+    <header class="nav nav-large" id="list-nav">
+      <div class="nav-row">
+        <span class="nav-compact-title">名片夾</span>
+        <button class="icon-btn" id="btn-export" type="button" aria-label="匯出 CSV">
+          <svg><use href="#i-share"/></svg><span>匯出</span>
+        </button>
       </div>
-      <button class="btn ghost" id="btn-export" type="button">匯出 CSV</button>
+      <h1 class="large-title">名片夾</h1>
+      <label class="searchbar">
+        <svg><use href="#i-search"/></svg>
+        <input id="search" type="search" placeholder="搜尋姓名、公司、電話" autocomplete="off" enterkeyhint="search">
+      </label>
     </header>
 
-    <div class="search">
-      <input id="search" type="search" placeholder="搜尋姓名、公司、電話…" autocomplete="off">
-    </div>
+    <main class="content">
+      <div class="stats" id="stats" hidden>
+        <div><b id="stat-total">0</b><span>張名片</span></div>
+        <div><b id="stat-company">0</b><span>家公司</span></div>
+        <div><b id="stat-month">0</b><span>本月新增</span></div>
+      </div>
 
-    <ul id="list" class="list"></ul>
+      <div id="list"></div>
 
-    <div id="empty" class="empty" hidden>
-      <p class="empty-title">還沒有名片</p>
-      <p>按下方「拍名片」開始，第一次辨識需要下載約 5MB 的中英文字庫，之後可離線使用。</p>
-    </div>
+      <div id="empty" class="empty" hidden>
+        <div class="empty-art" aria-hidden="true">
+          <div class="ea-card"><i></i><b></b><b></b><b></b></div>
+        </div>
+        <h2>還沒有名片</h2>
+        <p>點下方相機按鈕拍一張名片，<br>姓名、公司、電話會自動填好。</p>
+      </div>
 
-    <p class="privacy">🔒 名片照片與資料只存在這支手機，不會上傳。換手機或清除 Safari 資料前請先匯出 CSV。</p>
+      <div id="noresult" class="empty small" hidden>
+        <p>找不到符合的名片</p>
+      </div>
 
-    <nav class="actions">
-      <label class="btn primary big">
-        📷 拍名片
-        <input id="file-camera" type="file" accept="image/*" capture="environment" hidden>
-      </label>
-      <label class="btn secondary">
-        從相簿
+      <p class="footnote"><svg><use href="#i-lock"/></svg>照片與資料只存在這支手機，不會上傳。<br>換手機或清除資料前，請先匯出 CSV 備份。</p>
+    </main>
+
+    <nav class="tabbar">
+      <label class="tab">
+        <svg><use href="#i-photo"/></svg><span>相簿</span>
         <input id="file-photo" type="file" accept="image/*" hidden>
       </label>
-      <button class="btn secondary" id="btn-manual" type="button">手動</button>
+      <label class="fab" aria-label="拍名片">
+        <svg><use href="#i-camera"/></svg>
+        <input id="file-camera" type="file" accept="image/*" capture="environment" hidden>
+      </label>
+      <button class="tab" id="btn-manual" type="button">
+        <svg><use href="#i-pen"/></svg><span>手動輸入</span>
+      </button>
     </nav>
   </section>
 
-  <!-- 新增 / 編輯 -->
-  <section id="view-edit" class="view" hidden>
-    <header class="topbar">
-      <button class="btn ghost" id="btn-cancel" type="button">取消</button>
-      <h1 id="edit-title">新名片</h1>
-      <button class="btn ghost strong" id="btn-save" type="button">儲存</button>
+  <!-- ========== 名片詳情 ========== -->
+  <section id="view-detail" class="view" hidden>
+    <header class="nav nav-bar">
+      <button class="nav-btn back" id="btn-detail-back" type="button"><svg><use href="#i-back"/></svg>名片夾</button>
+      <span class="nav-title"></span>
+      <button class="nav-btn" id="btn-detail-edit" type="button">編輯</button>
     </header>
 
-    <div class="preview-wrap" id="preview-wrap" hidden>
-      <img id="preview" alt="名片照片">
-      <div class="preview-tools">
-        <button class="btn small" id="btn-rotate" type="button">↻ 旋轉後重新辨識</button>
+    <main class="content">
+      <div class="hero">
+        <div class="avatar xl" id="d-avatar"></div>
+        <h2 id="d-name"></h2>
+        <p class="hero-en" id="d-name-en"></p>
+        <p class="hero-role" id="d-role"></p>
+        <p class="hero-company" id="d-company"></p>
       </div>
-    </div>
 
-    <div id="ocr-status" class="ocr-status" hidden>
-      <div class="bar"><div id="ocr-bar"></div></div>
-      <p id="ocr-msg">準備中…</p>
-    </div>
+      <div class="quick">
+        <a class="q" id="q-call"><svg><use href="#i-phone"/></svg><span>通話</span></a>
+        <a class="q" id="q-sms"><svg><use href="#i-msg"/></svg><span>訊息</span></a>
+        <a class="q" id="q-mail"><svg><use href="#i-mail"/></svg><span>郵件</span></a>
+        <a class="q" id="q-map" target="_blank" rel="noopener"><svg><use href="#i-map"/></svg><span>地圖</span></a>
+      </div>
 
-    <form id="form" class="form" autocomplete="off">
-      <label>姓名<input name="name"></label>
-      <label>英文姓名<input name="nameEn"></label>
-      <label>公司<input name="company"></label>
-      <label>部門<input name="department"></label>
-      <label>職稱<input name="title"></label>
-      <label>手機<input name="mobile" type="tel"></label>
-      <label>電話<input name="phone" type="tel"></label>
-      <label>傳真<input name="fax" type="tel"></label>
-      <label>Email<input name="email" type="email" autocapitalize="off"></label>
-      <label>網址<input name="website" type="url" autocapitalize="off"></label>
-      <label>地址<textarea name="address" rows="2"></textarea></label>
-      <label>備註<textarea name="note" rows="3" placeholder="例如：在哪裡認識、談了什麼"></textarea></label>
-    </form>
+      <div class="group" id="d-info"></div>
 
-    <details class="raw" id="raw-wrap" hidden>
-      <summary>辨識原文（可複製貼到欄位）</summary>
-      <pre id="raw"></pre>
-    </details>
+      <figure class="cardimg" id="d-photo-wrap" hidden>
+        <img id="d-photo" alt="名片照片">
+        <figcaption>名片原圖・點一下放大</figcaption>
+      </figure>
 
-    <div class="danger-zone" id="danger" hidden>
-      <button class="btn danger" id="btn-delete" type="button">刪除這張名片</button>
-    </div>
+      <div class="group">
+        <button class="row action" id="btn-vcard" type="button"><span>加入 iPhone 通訊錄</span><svg><use href="#i-contact"/></svg></button>
+      </div>
+      <div class="group">
+        <button class="row action destructive" id="btn-delete" type="button"><span>刪除名片</span></button>
+      </div>
+      <p class="footnote center" id="d-meta"></p>
+    </main>
   </section>
+
+  <!-- ========== 新增 / 編輯 ========== -->
+  <section id="view-edit" class="view" hidden>
+    <header class="nav nav-bar">
+      <button class="nav-btn" id="btn-cancel" type="button">取消</button>
+      <span class="nav-title" id="edit-title">新名片</span>
+      <button class="nav-btn strong" id="btn-save" type="button">完成</button>
+    </header>
+
+    <main class="content">
+      <div class="scan" id="preview-wrap" hidden>
+        <div class="scan-frame">
+          <img id="preview" alt="名片照片">
+          <div class="scanline" id="scanline"></div>
+        </div>
+        <div class="scan-foot">
+          <div class="scan-status" id="ocr-status">
+            <div class="ring"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" /><circle id="ocr-ring" cx="18" cy="18" r="15" /></svg></div>
+            <span id="ocr-msg">準備中…</span>
+          </div>
+          <button class="pill" id="btn-rotate" type="button"><svg><use href="#i-rotate"/></svg>旋轉重掃</button>
+        </div>
+      </div>
+
+      <form id="form" autocomplete="off">
+        <h3 class="group-title">基本資料</h3>
+        <div class="group form">
+          <label class="row"><span>姓名</span><input name="name" placeholder="王小明"></label>
+          <label class="row"><span>英文姓名</span><input name="nameEn" placeholder="Ming Wang" autocapitalize="words"></label>
+          <label class="row"><span>公司</span><input name="company" placeholder="公司名稱"></label>
+          <label class="row"><span>部門</span><input name="department" placeholder="部門"></label>
+          <label class="row"><span>職稱</span><input name="title" placeholder="職稱"></label>
+        </div>
+
+        <h3 class="group-title">聯絡方式</h3>
+        <div class="group form">
+          <label class="row"><span>手機</span><input name="mobile" type="tel" placeholder="0912-345-678"></label>
+          <label class="row"><span>電話</span><input name="phone" type="tel" placeholder="02-2345-6789"></label>
+          <label class="row"><span>傳真</span><input name="fax" type="tel" placeholder="02-2345-6790"></label>
+          <label class="row"><span>Email</span><input name="email" type="email" autocapitalize="off" placeholder="name@company.com"></label>
+          <label class="row"><span>網址</span><input name="website" type="url" autocapitalize="off" placeholder="www.company.com"></label>
+          <label class="row top"><span>地址</span><textarea name="address" rows="2" placeholder="地址"></textarea></label>
+        </div>
+
+        <h3 class="group-title">備註</h3>
+        <div class="group form">
+          <label class="row top"><textarea name="note" rows="3" placeholder="在哪裡認識、談了什麼、後續待辦"></textarea></label>
+        </div>
+      </form>
+
+      <details class="raw" id="raw-wrap" hidden>
+        <summary>辨識原文</summary>
+        <pre id="raw"></pre>
+      </details>
+    </main>
+  </section>
+
+  <!-- 圖片放大 -->
+  <div class="lightbox" id="lightbox" hidden><img id="lightbox-img" alt=""></div>
 
   <div id="toast" class="toast" hidden></div>
 

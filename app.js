@@ -10,11 +10,12 @@
 
   const $ = (id) => document.getElementById(id);
   const els = {
-    list: $('list'), empty: $('empty'), count: $('count'), search: $('search'),
-    viewList: $('view-list'), viewEdit: $('view-edit'), form: $('form'),
+    list: $('list'), empty: $('empty'), noresult: $('noresult'), search: $('search'), stats: $('stats'),
+    views: { list: $('view-list'), detail: $('view-detail'), edit: $('view-edit') },
+    listNav: $('list-nav'), form: $('form'),
     preview: $('preview'), previewWrap: $('preview-wrap'),
-    ocrStatus: $('ocr-status'), ocrBar: $('ocr-bar'), ocrMsg: $('ocr-msg'),
-    raw: $('raw'), rawWrap: $('raw-wrap'), danger: $('danger'), editTitle: $('edit-title'),
+    ocrStatus: $('ocr-status'), ocrRing: $('ocr-ring'), ocrMsg: $('ocr-msg'),
+    raw: $('raw'), rawWrap: $('raw-wrap'), editTitle: $('edit-title'),
     toast: $('toast'), save: $('btn-save'), rotate: $('btn-rotate'),
   };
 
@@ -60,15 +61,54 @@
 
   // ---------- 狀態 ----------
   let cards = [];
-  let editing = null; // 目前編輯中的紀錄
-  let currentImage = null; // { canvas, rotation }
+  let current = null; // 詳情頁顯示中的名片
+  let editing = null; // 編輯中的紀錄
+  let editingIsNew = false;
+  let currentImage = null; // { img, rotation, autoFilled }
   let ocrRun = 0;
 
-  function toast(msg, ms = 2400) {
+  function toast(msg, ms = 2200) {
     els.toast.textContent = msg;
     els.toast.hidden = false;
+    els.toast.style.animation = 'none';
+    void els.toast.offsetWidth;
+    els.toast.style.animation = '';
     clearTimeout(toast._t);
     toast._t = setTimeout(() => { els.toast.hidden = true; }, ms);
+  }
+
+  function haptic() {
+    if (navigator.vibrate) navigator.vibrate(8);
+  }
+
+  function show(view) {
+    Object.entries(els.views).forEach(([k, v]) => { v.hidden = k !== view; });
+    window.scrollTo(0, 0);
+    onScroll();
+  }
+
+  // ---------- 頭像 ----------
+  const AVATAR_COLORS = [
+    ['#5b8def', '#2f5fc4'], ['#2bb3a3', '#14857a'], ['#f08a5d', '#cf5d32'], ['#9b7ae8', '#6b4bc4'],
+    ['#e86a92', '#c2406a'], ['#4fb26b', '#2c8746'], ['#e0a83c', '#b9801a'], ['#6b8299', '#465b70'],
+  ];
+  function initials(c) {
+    const n = (c.name || '').trim();
+    if (n) return n.length >= 3 ? n.slice(-2) : n.slice(-2);
+    const en = (c.nameEn || '').trim();
+    if (en) return en.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+    const co = (c.company || '').trim();
+    return co ? co[0].toUpperCase() : '?';
+  }
+  function paintAvatar(el, c) {
+    const key = c.name || c.nameEn || c.company || c.id || '';
+    let h = 0;
+    for (const ch of key) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+    const [a1, a2] = AVATAR_COLORS[h % AVATAR_COLORS.length];
+    el.style.setProperty('--a1', a1);
+    el.style.setProperty('--a2', a2);
+    el.textContent = initials(c);
+    el.style.fontSize = /^[A-Z?]+$/.test(el.textContent) ? '' : (el.classList.contains('xl') ? '32px' : '16px');
   }
 
   // ---------- 列表 ----------
@@ -82,43 +122,252 @@
     const shown = q
       ? cards.filter((c) => FIELDS.some(([k]) => (c[k] || '').toLowerCase().includes(q)))
       : cards;
-    els.count.textContent = `${cards.length} 張名片`;
+
     els.empty.hidden = cards.length > 0;
-    els.list.replaceChildren(...shown.map(renderItem));
+    els.stats.hidden = cards.length === 0 || !!q;
+    els.noresult.hidden = !(q && cards.length && !shown.length);
+    if (cards.length) {
+      const now = new Date();
+      const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      $('stat-total').textContent = cards.length;
+      $('stat-company').textContent = new Set(cards.map((c) => (c.company || '').trim()).filter(Boolean)).size;
+      $('stat-month').textContent = cards.filter((c) => (c.createdAt || '').startsWith(ym)).length;
+    }
+
+    els.list.replaceChildren();
+    if (!shown.length) return;
+
+    // 依新增時間分組
+    const groups = new Map();
+    shown.forEach((c) => {
+      const label = q ? `搜尋結果 ${shown.length} 筆` : groupLabel(c.createdAt);
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(c);
+    });
+    groups.forEach((items, label) => {
+      const h = document.createElement('h3');
+      h.className = 'group-title';
+      h.textContent = label;
+      const g = document.createElement('div');
+      g.className = 'group';
+      items.forEach((c) => g.append(renderRow(c, q)));
+      els.list.append(h, g);
+    });
   }
 
-  function renderItem(c) {
-    const li = document.createElement('li');
-    li.className = 'item';
-    const thumb = c.thumb ? document.createElement('img') : document.createElement('div');
-    if (c.thumb) { thumb.src = c.thumb; thumb.alt = ''; } else { thumb.className = 'ph'; thumb.textContent = '無圖'; }
+  function groupLabel(iso) {
+    if (!iso) return '更早';
+    const d = new Date(iso);
+    const now = new Date();
+    const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diff = Math.round((day(now) - day(d)) / 86400000);
+    if (diff === 0) return '今天';
+    if (diff === 1) return '昨天';
+    if (diff < 7) return '本週';
+    if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) return '本月';
+    return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月`;
+  }
+
+  function highlight(el, text, q) {
+    if (!q) { el.textContent = text; return; }
+    const i = text.toLowerCase().indexOf(q);
+    if (i < 0) { el.textContent = text; return; }
+    const m = document.createElement('mark');
+    m.textContent = text.slice(i, i + q.length);
+    el.append(text.slice(0, i), m, text.slice(i + q.length));
+  }
+
+  function renderRow(c, q) {
+    const row = document.createElement('div');
+    row.className = 'row card-row';
+    const av = document.createElement('div');
+    av.className = 'avatar';
+    paintAvatar(av, c);
     const meta = document.createElement('div');
     meta.className = 'meta';
     const n = document.createElement('div');
     n.className = 'n';
-    n.textContent = c.name || c.nameEn || '（未填姓名）';
+    highlight(n, c.name || c.nameEn || c.company || '（未命名）', q);
     if (c.title) { const s = document.createElement('small'); s.textContent = c.title; n.append(s); }
-    const co = document.createElement('div');
-    co.className = 'c';
-    co.textContent = c.company || '';
-    const p = document.createElement('div');
-    p.className = 'p';
-    p.textContent = c.mobile || c.phone || c.email || '';
-    meta.append(n, co, p);
-    li.append(thumb, meta);
-    li.addEventListener('click', () => openEdit(c));
-    return li;
+    const s = document.createElement('div');
+    s.className = 's';
+    const sub = c.name || c.nameEn ? c.company : (c.department || '');
+    const extra = q && !(sub || '').toLowerCase().includes(q)
+      ? FIELDS.map(([k]) => c[k] || '').find((v) => v.toLowerCase().includes(q))
+      : '';
+    highlight(s, extra || sub || c.mobile || c.phone || c.email || '', q);
+    meta.append(n, s);
+    const chev = svg('i-chev', 'chev');
+    row.append(av, meta, chev);
+    row.addEventListener('click', () => openDetail(c));
+    return row;
   }
 
-  // ---------- 編輯畫面 ----------
-  function show(view) {
-    els.viewList.hidden = view !== 'list';
-    els.viewEdit.hidden = view !== 'edit';
-    window.scrollTo(0, 0);
+  function svg(id, cls) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const s = document.createElementNS(ns, 'svg');
+    if (cls) s.setAttribute('class', cls);
+    const u = document.createElementNS(ns, 'use');
+    u.setAttribute('href', '#' + id);
+    s.append(u);
+    return s;
   }
 
+  // 大標題捲動後收合成小標題
+  function onScroll() {
+    els.listNav.classList.toggle('scrolled', window.scrollY > 40);
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  // ---------- 詳情 ----------
+  function telHref(v) {
+    const first = (v || '').split(' / ')[0].split(' #')[0];
+    const d = first.replace(/[^\d+]/g, '');
+    return d ? 'tel:' + d : '';
+  }
+  function webHref(v) {
+    if (!v) return '';
+    return /^https?:\/\//i.test(v) ? v : 'https://' + v;
+  }
+  function mapHref(v) {
+    return v ? 'https://maps.apple.com/?q=' + encodeURIComponent(v) : '';
+  }
+
+  function setQuick(id, href) {
+    const a = $(id);
+    if (href) { a.href = href; a.classList.remove('disabled'); }
+    else { a.removeAttribute('href'); a.classList.add('disabled'); }
+  }
+
+  function openDetail(c) {
+    current = c;
+    paintAvatar($('d-avatar'), c);
+    $('d-name').textContent = c.name || c.nameEn || c.company || '（未命名）';
+    $('d-name-en').textContent = c.name ? c.nameEn || '' : '';
+    $('d-role').textContent = [c.department, c.title].filter(Boolean).join(' · ');
+    $('d-company').textContent = c.name || c.nameEn ? c.company || '' : '';
+
+    const callNum = c.mobile || c.phone;
+    setQuick('q-call', telHref(callNum));
+    setQuick('q-sms', c.mobile ? 'sms:' + telHref(c.mobile).slice(4) : '');
+    setQuick('q-mail', c.email ? 'mailto:' + c.email : '');
+    setQuick('q-map', mapHref(c.address));
+
+    const info = $('d-info');
+    info.className = 'group info';
+    info.replaceChildren();
+    const rows = [
+      ['手機', c.mobile, telHref(c.mobile)],
+      ['電話', c.phone, telHref(c.phone)],
+      ['傳真', c.fax, ''],
+      ['Email', c.email, c.email ? 'mailto:' + c.email : ''],
+      ['網址', c.website, webHref(c.website)],
+      ['地址', c.address, mapHref(c.address)],
+      ['備註', c.note, ''],
+    ];
+    rows.forEach(([k, v, href]) => {
+      if (!v) return;
+      const r = document.createElement(href ? 'a' : 'div');
+      r.className = 'row';
+      if (href) {
+        r.href = href;
+        if (/^https:/.test(href)) { r.target = '_blank'; r.rel = 'noopener'; }
+      }
+      const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = k;
+      const vv = document.createElement('span'); vv.className = 'v'; vv.textContent = v;
+      r.append(kk, vv);
+      info.append(r);
+    });
+    info.hidden = !info.children.length;
+
+    $('d-photo-wrap').hidden = !c.thumb;
+    if (c.thumb) $('d-photo').src = c.thumb;
+    $('d-meta').textContent = c.createdAt ? `新增於 ${formatDate(c.createdAt)}` : '';
+    show('detail');
+  }
+
+  async function onDelete() {
+    if (!current) return;
+    if (!confirm(`確定刪除「${current.name || current.company || '這張名片'}」？此動作無法復原。`)) return;
+    await deleteCard(current.id);
+    current = null;
+    toast('已刪除');
+    await refresh();
+    show('list');
+  }
+
+  // ---------- vCard（加入通訊錄） ----------
+  function vEsc(s) {
+    return String(s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
+  }
+  function buildVcard(c) {
+    const lines = ['BEGIN:VCARD', 'VERSION:3.0'];
+    const name = c.name || '';
+    let family = '', given = '';
+    if (name && /[\u3400-\u9fff]/.test(name)) {
+      const compound = ['歐陽', '司馬', '諸葛', '上官', '張簡', '范姜'].find((x) => name.startsWith(x) && name.length > 2);
+      family = compound || name[0];
+      given = name.slice(family.length);
+    } else if (c.nameEn) {
+      const parts = c.nameEn.trim().split(/\s+/);
+      family = parts.length > 1 ? parts.pop() : '';
+      given = parts.join(' ');
+    }
+    lines.push(`N:${vEsc(family)};${vEsc(given)};;;`);
+    lines.push(`FN:${vEsc(name || c.nameEn || c.company || '')}`);
+    if (c.company || c.department) lines.push(`ORG:${vEsc(c.company)}${c.department ? ';' + vEsc(c.department) : ''}`);
+    if (c.title) lines.push(`TITLE:${vEsc(c.title)}`);
+    const tels = (v) => (v || '').split(' / ').map((x) => x.trim()).filter(Boolean);
+    tels(c.mobile).forEach((t) => lines.push(`TEL;TYPE=CELL:${t.replace(' #', ',')}`));
+    tels(c.phone).forEach((t) => lines.push(`TEL;TYPE=WORK,VOICE:${t.replace(' #', ',')}`));
+    tels(c.fax).forEach((t) => lines.push(`TEL;TYPE=WORK,FAX:${t}`));
+    if (c.email) lines.push(`EMAIL;TYPE=INTERNET,WORK:${c.email}`);
+    if (c.website) lines.push(`URL:${webHref(c.website)}`);
+    if (c.address) lines.push(`ADR;TYPE=WORK:;;${vEsc(c.address)};;;;`);
+    const note = [c.nameEn && name ? c.nameEn : '', c.note].filter(Boolean).join('\n');
+    if (note) lines.push(`NOTE:${vEsc(note)}`);
+    if (c.thumb && c.thumb.startsWith('data:image/jpeg;base64,')) {
+      // 通訊錄大頭照用名片照片
+      lines.push(`PHOTO;ENCODING=b;TYPE=JPEG:${c.thumb.slice(23)}`);
+    }
+    lines.push('END:VCARD');
+    return lines.join('\r\n') + '\r\n';
+  }
+
+  async function shareFile(content, filename, type) {
+    const blob = new Blob([content], { type });
+    const file = new File([blob], filename, { type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] });
+        return true;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return false;
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return true;
+  }
+
+  async function onVcard() {
+    if (!current) return;
+    const fname = (current.name || current.nameEn || current.company || 'contact').replace(/[\\/:*?"<>|]/g, '') + '.vcf';
+    await shareFile(buildVcard(current), fname, 'text/vcard');
+  }
+
+  // ---------- 編輯 ----------
   function fillForm(data) {
-    FIELDS.forEach(([k]) => { els.form.elements[k].value = data[k] || ''; });
+    FIELDS.forEach(([k]) => {
+      els.form.elements[k].value = data[k] || '';
+      els.form.elements[k].closest('.row').classList.remove('autofill');
+    });
   }
 
   function readForm() {
@@ -128,19 +377,16 @@
   }
 
   function openEdit(card) {
+    editingIsNew = !card;
     editing = card ? { ...card } : { id: newId(), createdAt: new Date().toISOString() };
     currentImage = null;
     ocrRun++;
     fillForm(editing);
     els.editTitle.textContent = card ? '編輯名片' : '新名片';
-    els.danger.hidden = !card;
-    els.previewWrap.hidden = !editing.thumb;
-    els.rotate.hidden = true;
-    if (editing.thumb) els.preview.src = editing.thumb;
+    els.previewWrap.hidden = true;
+    els.previewWrap.classList.remove('scanning');
     els.raw.textContent = editing.rawText || '';
     els.rawWrap.hidden = !editing.rawText;
-    els.ocrStatus.hidden = true;
-    els.save.disabled = false;
     show('edit');
   }
 
@@ -150,21 +396,20 @@
 
   async function onSave() {
     const data = readForm();
-    if (!Object.values(data).some(Boolean)) { toast('至少填一個欄位'); return; }
+    if (!Object.values(data).some(Boolean)) { toast('請至少填寫一個欄位'); return; }
     const rec = { ...editing, ...data, updatedAt: new Date().toISOString() };
+    ocrRun++;
     await putCard(rec);
-    toast('已儲存');
+    haptic();
     await refresh();
-    show('list');
+    toast(editingIsNew ? '已加入名片夾' : '已更新');
+    openDetail(rec);
   }
 
-  async function onDelete() {
-    if (!editing) return;
-    if (!confirm(`確定刪除「${editing.name || editing.company || '這張名片'}」？`)) return;
-    await deleteCard(editing.id);
-    toast('已刪除');
-    await refresh();
-    show('list');
+  function onCancel() {
+    ocrRun++;
+    if (!editingIsNew && current) openDetail(current);
+    else show('list');
   }
 
   // ---------- 影像處理 ----------
@@ -237,47 +482,62 @@
   }
 
   const STATUS_TEXT = {
-    'loading tesseract core': '載入辨識引擎…',
-    'initializing tesseract': '初始化…',
-    'loading language traineddata': '載入中英文字庫（第一次較久）…',
-    'initializing api': '初始化…',
-    'recognizing text': '辨識文字中…',
+    'loading tesseract core': '載入辨識引擎',
+    'initializing tesseract': '初始化',
+    'loading language traineddata': '載入中英文字庫（首次較久）',
+    'initializing api': '初始化',
+    'recognizing text': '辨識文字中',
   };
+
+  function setStatus(text, progress, state) {
+    els.ocrMsg.textContent = text;
+    els.ocrRing.style.strokeDashoffset = String(94.25 * (1 - Math.max(0, Math.min(1, progress))));
+    els.ocrStatus.className = 'scan-status' + (state ? ' ' + state : '');
+  }
 
   async function runOcr() {
     if (!currentImage) return;
     const run = ++ocrRun;
-    els.ocrStatus.hidden = false;
-    els.ocrBar.style.width = '0%';
-    els.ocrMsg.textContent = '準備中…';
+    els.previewWrap.classList.add('scanning');
     els.rotate.disabled = true;
+    setStatus('準備中…', 0.03);
     progressCb = (m) => {
       if (run !== ocrRun) return;
-      els.ocrMsg.textContent = STATUS_TEXT[m.status] || m.status;
-      els.ocrBar.style.width = Math.round((m.progress || 0) * 100) + '%';
+      setStatus((STATUS_TEXT[m.status] || m.status) + '…', Math.max(0.03, m.progress || 0));
     };
     try {
       const rotated = drawScaled(currentImage.img, 2400, currentImage.rotation);
       const worker = await getWorker();
       const { data } = await worker.recognize(toOcrCanvas(rotated));
       if (run !== ocrRun) return;
-      const text = data.text || '';
+      const text = (data.text || '').trim();
       const parsed = CardParser.parseCard(text);
-      // 已經手動填的欄位不覆蓋
+      // 使用者自己填的欄位不覆蓋
       const cur = readForm();
-      FIELDS.forEach(([k]) => { if (!cur[k] || currentImage.autoFilled.has(k)) { els.form.elements[k].value = parsed[k] || ''; if (parsed[k]) currentImage.autoFilled.add(k); } });
-      els.raw.textContent = text.trim();
-      els.rawWrap.hidden = !text.trim();
-      editing.rawText = text.trim();
-      els.ocrMsg.textContent = text.trim() ? '辨識完成，請核對欄位後儲存' : '沒辨識到文字，可旋轉後再試或手動輸入';
-      els.ocrBar.style.width = '100%';
-      setTimeout(() => { if (run === ocrRun) els.ocrStatus.hidden = true; }, 2500);
+      let filled = 0;
+      FIELDS.forEach(([k]) => {
+        if (cur[k] && !currentImage.autoFilled.has(k)) return;
+        const input = els.form.elements[k];
+        input.value = parsed[k] || '';
+        input.closest('.row').classList.toggle('autofill', !!parsed[k]);
+        if (parsed[k]) { currentImage.autoFilled.add(k); filled++; }
+        else currentImage.autoFilled.delete(k);
+      });
+      els.raw.textContent = text;
+      els.rawWrap.hidden = !text;
+      editing.rawText = text;
+      haptic();
+      if (filled) setStatus(`已辨識 ${filled} 個欄位，請核對`, 1, 'done');
+      else setStatus(text ? '沒抓到欄位，請看辨識原文或旋轉重掃' : '沒辨識到文字，可旋轉重掃或手動輸入', 1, 'error');
     } catch (e) {
       console.error(e);
       if (run !== ocrRun) return;
-      els.ocrMsg.textContent = '辨識失敗：' + (e && e.message ? e.message : e) + '（可手動輸入）';
+      setStatus('辨識失敗，請手動輸入', 1, 'error');
     } finally {
-      if (run === ocrRun) els.rotate.disabled = false;
+      if (run === ocrRun) {
+        els.rotate.disabled = false;
+        els.previewWrap.classList.remove('scanning');
+      }
     }
   }
 
@@ -288,11 +548,9 @@
     openEdit(null);
     try {
       const img = await loadImage(file);
-      const thumb = drawScaled(img, 640).toDataURL('image/jpeg', 0.75);
-      editing.thumb = thumb;
-      els.preview.src = thumb;
+      editing.thumb = drawScaled(img, 900).toDataURL('image/jpeg', 0.78);
+      els.preview.src = editing.thumb;
       els.previewWrap.hidden = false;
-      els.rotate.hidden = false;
       currentImage = { img, rotation: 0, autoFilled: new Set() };
       runOcr();
     } catch (err) {
@@ -303,11 +561,18 @@
   function onRotate() {
     if (!currentImage) return;
     currentImage.rotation = (currentImage.rotation + 90) % 360;
-    const t = drawScaled(currentImage.img, 640, currentImage.rotation);
-    editing.thumb = t.toDataURL('image/jpeg', 0.75);
+    editing.thumb = drawScaled(currentImage.img, 900, currentImage.rotation).toDataURL('image/jpeg', 0.78);
     els.preview.src = editing.thumb;
     runOcr();
   }
+
+  // 使用者手動改過的欄位就不再標示為自動填入
+  els.form.addEventListener('input', (e) => {
+    const name = e.target.name;
+    if (currentImage) currentImage.autoFilled.delete(name);
+    const row = e.target.closest('.row');
+    if (row) row.classList.remove('autofill');
+  });
 
   // ---------- CSV ----------
   function csvCell(key, v) {
@@ -330,7 +595,7 @@
       cells.push(csvCell('createdAt', formatDate(c.createdAt)));
       lines.push(cells.join(','));
     });
-    return '﻿' + lines.join('\r\n') + '\r\n';
+    return '\uFEFF' + lines.join('\r\n') + '\r\n';
   }
 
   function formatDate(iso) {
@@ -345,36 +610,24 @@
     const d = new Date();
     const p = (n) => String(n).padStart(2, '0');
     const filename = `名片_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.csv`;
-    const blob = new Blob([buildCsv(cards)], { type: 'text/csv;charset=utf-8' });
-    const file = new File([blob], filename, { type: 'text/csv' });
     // iPhone 主畫面 App 用分享面板最穩：可存到「檔案」、AirDrop、Email、LINE
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file], title: filename });
-        return;
-      } catch (e) {
-        if (e && e.name === 'AbortError') return;
-      }
-    }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-    toast(`已匯出 ${cards.length} 張名片`);
+    const ok = await shareFile(buildCsv(cards), filename, 'text/csv');
+    if (ok) toast(`已匯出 ${cards.length} 張名片`);
   }
 
   // ---------- 綁定 ----------
   $('file-camera').addEventListener('change', onFile);
   $('file-photo').addEventListener('change', onFile);
   $('btn-manual').addEventListener('click', () => openEdit(null));
-  $('btn-cancel').addEventListener('click', () => { ocrRun++; show('list'); });
+  $('btn-cancel').addEventListener('click', onCancel);
   $('btn-save').addEventListener('click', onSave);
   $('btn-delete').addEventListener('click', onDelete);
   $('btn-export').addEventListener('click', onExport);
+  $('btn-detail-back').addEventListener('click', () => show('list'));
+  $('btn-detail-edit').addEventListener('click', () => current && openEdit(current));
+  $('btn-vcard').addEventListener('click', onVcard);
+  $('d-photo').addEventListener('click', () => { $('lightbox-img').src = $('d-photo').src; $('lightbox').hidden = false; });
+  $('lightbox').addEventListener('click', () => { $('lightbox').hidden = true; });
   els.rotate.addEventListener('click', onRotate);
   els.search.addEventListener('input', renderList);
   els.form.addEventListener('submit', (e) => { e.preventDefault(); onSave(); });
@@ -391,5 +644,5 @@
   });
 
   // 測試用
-  window.__cardScanner = { buildCsv, refresh };
+  window.__cardScanner = { buildCsv, buildVcard, refresh };
 })();
