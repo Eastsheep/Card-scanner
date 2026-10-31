@@ -34,6 +34,8 @@
       <symbol id="i-contact" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 20c.8-3.6 3.8-5.5 7.5-5.5s6.7 1.9 7.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
       <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19.5 4v4.5H15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><path d="M10.3 3h3.4l.5 2.4 1.6.9 2.3-.8 1.7 2.9-1.8 1.6v1.9l1.8 1.6-1.7 2.9-2.3-.8-1.6.9-.5 2.4h-3.4l-.5-2.4-1.6-.9-2.3.8-1.7-2.9 1.8-1.6v-1.9L4.2 8.4l1.7-2.9 2.3.8 1.6-.9.5-2.4Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+      <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2.5c.6 4.6 2.9 6.9 7.5 7.5-4.6.6-6.9 2.9-7.5 7.5-.6-4.6-2.9-6.9-7.5-7.5 4.6-.6 6.9-2.9 7.5-7.5Z" fill="currentColor"/><path d="M19 15.5c.3 2 1.2 2.9 3.2 3.2-2 .3-2.9 1.2-3.2 3.2-.3-2-1.2-2.9-3.2-3.2 2-.3 2.9-1.2 3.2-3.2Z" fill="currentColor" opacity=".6"/></symbol>
       <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     </defs>
   </svg>
@@ -42,6 +44,7 @@
   <section id="view-list" class="view">
     <header class="nav nav-large" id="list-nav">
       <div class="nav-row">
+        <button class="icon-btn" id="btn-settings" type="button" aria-label="設定"><svg><use href="#i-gear"/></svg></button>
         <span class="nav-compact-title">名片夾</span>
         <button class="icon-btn" id="btn-export" type="button" aria-label="匯出 CSV">
           <svg><use href="#i-share"/></svg><span>匯出</span>
@@ -75,7 +78,7 @@
         <p>找不到符合的名片</p>
       </div>
 
-      <p class="footnote"><svg><use href="#i-lock"/></svg>照片與資料只存在這支手機，不會上傳。<br>換手機或清除資料前，請先匯出 CSV 備份。</p>
+      <p class="footnote" id="list-foot"></p>
     </main>
 
     <nav class="tabbar">
@@ -152,6 +155,7 @@
           <div class="scan-status" id="ocr-status">
             <div class="ring"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" /><circle id="ocr-ring" cx="18" cy="18" r="15" /></svg></div>
             <span id="ocr-msg">準備中…</span>
+            <span class="badge" id="ocr-badge" hidden>AI</span>
           </div>
           <button class="pill" id="btn-rotate" type="button"><svg><use href="#i-rotate"/></svg>旋轉重掃</button>
         </div>
@@ -190,6 +194,43 @@
     </main>
   </section>
 
+  <!-- ========== 設定 ========== -->
+  <section id="view-settings" class="view" hidden>
+    <header class="nav nav-bar">
+      <button class="nav-btn back" id="btn-settings-back" type="button"><svg><use href="#i-back"/></svg>名片夾</button>
+      <span class="nav-title">設定</span>
+      <span></span>
+    </header>
+    <main class="content">
+      <h3 class="group-title">辨識方式</h3>
+      <div class="group choice">
+        <label class="row">
+          <input type="radio" name="mode" value="ai">
+          <div class="meta"><div class="t"><svg class="spark"><use href="#i-spark"/></svg>AI 辨識（Claude）</div><div class="d">準確度高，能理解版面與中英對照。照片會傳送到 Anthropic 處理，需要網路與 API Key。</div></div>
+        </label>
+        <label class="row">
+          <input type="radio" name="mode" value="local">
+          <div class="meta"><div class="t">本機辨識</div><div class="d">完全離線，照片不離開手機。中文名片準確度較低，常需手動修正。</div></div>
+        </label>
+      </div>
+
+      <div id="ai-settings">
+        <h3 class="group-title">Claude API</h3>
+        <div class="group form">
+          <label class="row"><span>API Key</span><input id="set-key" type="password" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <label class="row"><span>模型</span><select id="set-model"></select></label>
+        </div>
+        <p class="hint">到 <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic Console</a> 建立 API Key 後貼上。Key 只存在這支手機，只會傳給 Anthropic。<br>費用估計：Opus 5.5 每張約 NT$1 以內，Haiku 5.5 每張約 NT$0.1 以內，實際以 Anthropic 帳單為準。AI 失敗時會自動改用本機辨識。</p>
+      </div>
+
+      <h3 class="group-title">關於</h3>
+      <div class="group info">
+        <div class="row"><span class="k">名片資料存放</span><span class="v">只存在這支手機（不會上傳到 GitHub 或任何伺服器）</span></div>
+        <div class="row"><span class="k">備份</span><span class="v">首頁右上「匯出」產生 CSV，可存到「檔案」或寄 Email</span></div>
+      </div>
+    </main>
+  </section>
+
   <!-- 圖片放大 -->
   <div class="lightbox" id="lightbox" hidden><img id="lightbox-img" alt=""></div>
 
@@ -197,6 +238,7 @@
 
   <script src="vendor/tesseract.min.js"></script>
   <script src="parser.js"></script>
+  <script src="ai.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

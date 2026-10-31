@@ -302,3 +302,31 @@ svg { width: 22px; height: 22px; flex: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- 設定 ---------- */
+.nav-row { justify-content: space-between; }
+#btn-settings { padding-left: 0; padding-right: 8px; }
+#btn-settings svg { width: 24px; height: 24px; }
+.choice .row { align-items: flex-start; gap: 12px; padding: 12px 16px; cursor: pointer; }
+.choice input[type=radio] {
+  appearance: none; -webkit-appearance: none; width: 22px; height: 22px; margin: 2px 0 0; flex: none;
+  border-radius: 50%; border: 2px solid var(--text-3); display: grid; place-items: center;
+}
+.choice input[type=radio]:checked { border-color: var(--tint); background: radial-gradient(var(--tint) 0 5px, transparent 5.5px); }
+.choice .meta { flex: 1; }
+.choice .t { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.choice .d { font-size: 14px; color: var(--text-2); margin-top: 2px; line-height: 1.5; }
+.spark { width: 17px; height: 17px; color: #8b5cf6; }
+.form select {
+  flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--tint);
+  font: inherit; font-size: 17px; padding: 12px 0; -webkit-appearance: none; appearance: none; text-align: right; direction: rtl;
+}
+.hint { font-size: 13px; color: var(--text-2); line-height: 1.6; margin: -10px 16px 18px; }
+.hint a { color: var(--tint); }
+.badge {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #fff; padding: 2px 7px; border-radius: 999px;
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6); flex: none;
+}
+.scanning.ai .scanline { background: linear-gradient(180deg, transparent, rgba(139, 92, 246, .0) 30%, rgba(139, 92, 246, .35) 92%, #a78bfa 100%); border-bottom-color: #c4b5fd; }
+.ring.spin svg { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }

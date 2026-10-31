@@ -11,10 +11,10 @@
   const $ = (id) => document.getElementById(id);
   const els = {
     list: $('list'), empty: $('empty'), noresult: $('noresult'), search: $('search'), stats: $('stats'),
-    views: { list: $('view-list'), detail: $('view-detail'), edit: $('view-edit') },
+    views: { list: $('view-list'), detail: $('view-detail'), edit: $('view-edit'), settings: $('view-settings') },
     listNav: $('list-nav'), form: $('form'),
     preview: $('preview'), previewWrap: $('preview-wrap'),
-    ocrStatus: $('ocr-status'), ocrRing: $('ocr-ring'), ocrMsg: $('ocr-msg'),
+    ocrStatus: $('ocr-status'), ocrRing: $('ocr-ring'), ocrMsg: $('ocr-msg'), ocrBadge: $('ocr-badge'),
     raw: $('raw'), rawWrap: $('raw-wrap'), editTitle: $('edit-title'),
     toast: $('toast'), save: $('btn-save'), rotate: $('btn-rotate'),
   };
@@ -57,6 +57,52 @@
   // 加到主畫面後，要求瀏覽器不要自動清掉資料
   if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persist().catch(() => {});
+  }
+
+  // ---------- 設定（只存在這支手機） ----------
+  const SETTINGS_KEY = 'card-scanner-settings';
+  let settings = { mode: 'local', apiKey: '', model: CardAI.DEFAULT_MODEL };
+  try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) { /* 無痕模式等 */ }
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
+    renderFootnote();
+  }
+  const useAI = () => settings.mode === 'ai' && !!settings.apiKey;
+
+  function renderFootnote() {
+    const f = $('list-foot');
+    f.replaceChildren();
+    if (useAI()) {
+      f.append(svg('i-spark'), 'AI 辨識已開啟：拍照時照片會傳給 Claude 辨識。', document.createElement('br'), '名片資料仍只存在這支手機，換手機前請先匯出 CSV。');
+    } else {
+      f.append(svg('i-lock'), '照片與資料只存在這支手機，不會上傳。', document.createElement('br'), '換手機或清除資料前，請先匯出 CSV 備份。');
+    }
+  }
+
+  function openSettings() {
+    document.querySelectorAll('input[name=mode]').forEach((r) => { r.checked = r.value === settings.mode; });
+    $('set-key').value = settings.apiKey;
+    const sel = $('set-model');
+    if (!sel.options.length) {
+      CardAI.MODELS.forEach((m) => sel.append(new Option(m.label, m.id)));
+    }
+    sel.value = settings.model;
+    $('ai-settings').hidden = settings.mode !== 'ai';
+    show('settings');
+  }
+  document.querySelectorAll('input[name=mode]').forEach((r) => r.addEventListener('change', () => {
+    settings.mode = r.value;
+    $('ai-settings').hidden = settings.mode !== 'ai';
+    saveSettings();
+    if (settings.mode === 'ai' && !settings.apiKey) $('set-key').focus();
+  }));
+  $('set-key').addEventListener('change', (e) => { settings.apiKey = e.target.value.trim(); saveSettings(); });
+  $('set-model').addEventListener('change', (e) => { settings.model = e.target.value; saveSettings(); });
+  function leaveSettings() {
+    settings.apiKey = $('set-key').value.trim();
+    saveSettings();
+    if (settings.mode === 'ai' && !settings.apiKey) toast('尚未填 API Key，會先用本機辨識');
+    show('list');
   }
 
   // ---------- 狀態 ----------
@@ -489,10 +535,66 @@
     'recognizing text': '辨識文字中',
   };
 
-  function setStatus(text, progress, state) {
+  function setStatus(text, progress, state, opts = {}) {
     els.ocrMsg.textContent = text;
+    els.ocrBadge.hidden = !opts.ai;
+    els.ocrStatus.querySelector('.ring').classList.toggle('spin', !!opts.spin);
     els.ocrRing.style.strokeDashoffset = String(94.25 * (1 - Math.max(0, Math.min(1, progress))));
     els.ocrStatus.className = 'scan-status' + (state ? ' ' + state : '');
+  }
+
+  function applyParsed(parsed) {
+    // 使用者自己填的欄位不覆蓋
+    const cur = readForm();
+    let filled = 0;
+    FIELDS.forEach(([k]) => {
+      if (cur[k] && !currentImage.autoFilled.has(k)) return;
+      const input = els.form.elements[k];
+      input.value = parsed[k] || '';
+      input.closest('.row').classList.toggle('autofill', !!parsed[k]);
+      if (parsed[k]) { currentImage.autoFilled.add(k); filled++; }
+      else currentImage.autoFilled.delete(k);
+    });
+    return filled;
+  }
+
+  async function runAiOcr(run) {
+    els.previewWrap.classList.add('ai');
+    setStatus('AI 辨識中…', 0.25, '', { ai: true, spin: true });
+    const jpeg = drawScaled(currentImage.img, 1568, currentImage.rotation).toDataURL('image/jpeg', 0.85);
+    const { fields } = await CardAI.extract({
+      apiKey: settings.apiKey,
+      model: settings.model,
+      imageBase64: jpeg.slice(jpeg.indexOf(',') + 1),
+    });
+    if (run !== ocrRun) return;
+    editing.rawText = '';
+    els.rawWrap.hidden = true;
+    const filled = applyParsed(fields);
+    editing.ocrBy = 'ai';
+    if (filled) setStatus(`AI 已辨識 ${filled} 個欄位，請核對`, 1, 'done', { ai: true });
+    else setStatus('AI 沒有讀到資料，可旋轉重掃或手動輸入', 1, 'error', { ai: true });
+  }
+
+  async function runLocalOcr(run, prefix = '') {
+    els.previewWrap.classList.remove('ai');
+    setStatus(prefix + '準備中…', 0.03);
+    progressCb = (m) => {
+      if (run !== ocrRun) return;
+      setStatus(prefix + (STATUS_TEXT[m.status] || m.status) + '…', Math.max(0.03, m.progress || 0));
+    };
+    const rotated = drawScaled(currentImage.img, 2400, currentImage.rotation);
+    const worker = await getWorker();
+    const { data } = await worker.recognize(toOcrCanvas(rotated));
+    if (run !== ocrRun) return;
+    const text = (data.text || '').trim();
+    const filled = applyParsed(CardParser.parseCard(text));
+    els.raw.textContent = text;
+    els.rawWrap.hidden = !text;
+    editing.rawText = text;
+    editing.ocrBy = 'local';
+    if (filled) setStatus(`已辨識 ${filled} 個欄位，請核對`, 1, 'done');
+    else setStatus(text ? '沒抓到欄位，請看辨識原文或旋轉重掃' : '沒辨識到文字，可旋轉重掃或手動輸入', 1, 'error');
   }
 
   async function runOcr() {
@@ -500,35 +602,21 @@
     const run = ++ocrRun;
     els.previewWrap.classList.add('scanning');
     els.rotate.disabled = true;
-    setStatus('準備中…', 0.03);
-    progressCb = (m) => {
-      if (run !== ocrRun) return;
-      setStatus((STATUS_TEXT[m.status] || m.status) + '…', Math.max(0.03, m.progress || 0));
-    };
     try {
-      const rotated = drawScaled(currentImage.img, 2400, currentImage.rotation);
-      const worker = await getWorker();
-      const { data } = await worker.recognize(toOcrCanvas(rotated));
-      if (run !== ocrRun) return;
-      const text = (data.text || '').trim();
-      const parsed = CardParser.parseCard(text);
-      // 使用者自己填的欄位不覆蓋
-      const cur = readForm();
-      let filled = 0;
-      FIELDS.forEach(([k]) => {
-        if (cur[k] && !currentImage.autoFilled.has(k)) return;
-        const input = els.form.elements[k];
-        input.value = parsed[k] || '';
-        input.closest('.row').classList.toggle('autofill', !!parsed[k]);
-        if (parsed[k]) { currentImage.autoFilled.add(k); filled++; }
-        else currentImage.autoFilled.delete(k);
-      });
-      els.raw.textContent = text;
-      els.rawWrap.hidden = !text;
-      editing.rawText = text;
-      haptic();
-      if (filled) setStatus(`已辨識 ${filled} 個欄位，請核對`, 1, 'done');
-      else setStatus(text ? '沒抓到欄位，請看辨識原文或旋轉重掃' : '沒辨識到文字，可旋轉重掃或手動輸入', 1, 'error');
+      if (useAI()) {
+        try {
+          await runAiOcr(run);
+        } catch (e) {
+          console.error(e);
+          if (run !== ocrRun) return;
+          // AI 失敗（沒網路、Key 錯誤等）時退回本機辨識
+          toast(e.message + '，改用本機辨識', 3500);
+          await runLocalOcr(run, '改用本機：');
+        }
+      } else {
+        await runLocalOcr(run);
+      }
+      if (run === ocrRun) haptic();
     } catch (e) {
       console.error(e);
       if (run !== ocrRun) return;
@@ -626,6 +714,8 @@
   $('btn-detail-back').addEventListener('click', () => show('list'));
   $('btn-detail-edit').addEventListener('click', () => current && openEdit(current));
   $('btn-vcard').addEventListener('click', onVcard);
+  $('btn-settings').addEventListener('click', openSettings);
+  $('btn-settings-back').addEventListener('click', leaveSettings);
   $('d-photo').addEventListener('click', () => { $('lightbox-img').src = $('d-photo').src; $('lightbox').hidden = false; });
   $('lightbox').addEventListener('click', () => { $('lightbox').hidden = true; });
   els.rotate.addEventListener('click', onRotate);
@@ -637,7 +727,9 @@
   }
 
   // 提早在背景載入辨識引擎，拍照後等比較短
+  renderFootnote();
   refresh().then(() => {
+    if (useAI()) return; // AI 模式不必預載本機引擎
     const warm = () => getWorker().catch(() => {});
     if ('requestIdleCallback' in window) requestIdleCallback(warm, { timeout: 3000 });
     else setTimeout(warm, 1500);
