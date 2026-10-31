@@ -199,9 +199,9 @@ svg { width: 22px; height: 22px; flex: none; }
 .tabbar {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 30;
   bottom: calc(var(--safe-b) + 12px);
-  width: min(360px, calc(100vw - 32px));
+  width: 216px;
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
-  padding: 6px 8px; border-radius: 999px;
+  padding: 5px; border-radius: 999px;
   background: var(--glass-bg);
   -webkit-backdrop-filter: blur(24px) saturate(190%); backdrop-filter: blur(24px) saturate(190%);
   border: .5px solid var(--glass-border);
@@ -209,24 +209,24 @@ svg { width: 22px; height: 22px; flex: none; }
 }
 /* 背景淡出，讓列表捲到底下時有層次 */
 #view-list::after {
-  content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--safe-b) + 90px); z-index: 25; pointer-events: none;
+  content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: calc(var(--safe-b) + 76px); z-index: 25; pointer-events: none;
   background: linear-gradient(to top, color-mix(in srgb, var(--bg) 70%, transparent), transparent);
 }
 .tab {
-  display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--text);
-  font-size: 11px; font-weight: 500; padding: 7px 0; border-radius: 999px; cursor: pointer;
+  display: grid; place-items: center; color: var(--text);
+  height: 48px; border-radius: 999px; cursor: pointer;
   transition: background .15s, transform .15s;
 }
-.tab svg { width: 24px; height: 24px; }
+.tab svg { width: 23px; height: 23px; }
 .tab:active { background: var(--fill); transform: scale(.96); }
 .fab {
-  width: 60px; height: 60px; border-radius: 50%; cursor: pointer; margin: 0 18px;
+  width: 50px; height: 50px; border-radius: 50%; cursor: pointer; margin: 0 10px;
   display: grid; place-items: center; color: #fff;
   background: linear-gradient(160deg, rgba(64, 140, 255, .95), rgba(11, 79, 180, .95));
   box-shadow: 0 6px 16px rgba(11, 79, 180, .35), inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 -2px 6px rgba(0, 0, 0, .15);
   transition: transform .15s;
 }
-.fab svg { width: 28px; height: 28px; }
+.fab svg { width: 24px; height: 24px; }
 .fab:active { transform: scale(.94); }
 
 /* ---------- 詳情頁 ---------- */
@@ -319,7 +319,7 @@ svg { width: 22px; height: 22px; flex: none; }
 .lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
 
 .toast {
-  position: fixed; left: 50%; bottom: calc(var(--safe-b) + 100px); transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: calc(var(--safe-b) + 84px); transform: translateX(-50%);
   background: rgba(30, 30, 32, .92); color: #fff; padding: 10px 18px; border-radius: 999px;
   font-size: 14px; font-weight: 500; z-index: 90; max-width: calc(100vw - 32px); text-align: center;
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);

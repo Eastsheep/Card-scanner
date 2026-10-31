@@ -98,16 +98,16 @@
     </main>
 
     <nav class="tabbar">
-      <label class="tab">
-        <svg><use href="#i-photo"/></svg><span>相簿</span>
+      <label class="tab" aria-label="從相簿選擇">
+        <svg><use href="#i-photo"/></svg>
         <input id="file-photo" type="file" accept="image/*" hidden>
       </label>
       <label class="fab" aria-label="拍名片">
         <svg><use href="#i-camera"/></svg>
         <input id="file-camera" type="file" accept="image/*" capture="environment" hidden>
       </label>
-      <button class="tab" id="btn-manual" type="button">
-        <svg><use href="#i-pen"/></svg><span>手動輸入</span>
+      <button class="tab" id="btn-manual" type="button" aria-label="手動輸入">
+        <svg><use href="#i-pen"/></svg>
       </button>
     </nav>
   </section>
