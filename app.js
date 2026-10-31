@@ -873,7 +873,15 @@
 
   // 提早在背景載入辨識引擎，拍照後等比較短
   renderFootnote();
+  function hideSplash() {
+    const sp = $('splash');
+    if (!sp || sp.classList.contains('hide')) return;
+    sp.classList.add('hide');
+    setTimeout(() => sp.remove(), 350);
+  }
+  setTimeout(hideSplash, 4000); // 保險：資料庫卡住也不要一直停在啟動畫面
   refresh().then(() => {
+    hideSplash();
     if (useAI()) return; // AI 模式不必預載本機引擎
     const warm = () => getWorker().catch(() => {});
     if ('requestIdleCallback' in window) requestIdleCallback(warm, { timeout: 3000 });
