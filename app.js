@@ -61,19 +61,21 @@
 
   // ---------- 設定（只存在這支手機） ----------
   const SETTINGS_KEY = 'card-scanner-settings';
-  let settings = { mode: 'local', apiKey: '', model: CardAI.DEFAULT_MODEL };
+  let settings = { mode: 'local', provider: 'deepseek', apiKey: '', model: CardAI.DEFAULT_MODEL, dsKey: '', dsModel: CardAI.DEEPSEEK_DEFAULT_MODEL };
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) { /* 無痕模式等 */ }
   function saveSettings() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
     renderFootnote();
   }
-  const useAI = () => settings.mode === 'ai' && !!settings.apiKey;
+  const aiKey = () => (settings.provider === 'claude' ? settings.apiKey : settings.dsKey);
+  const useAI = () => settings.mode === 'ai' && !!aiKey();
+  const providerLabel = () => CardAI.PROVIDERS[settings.provider].label;
 
   function renderFootnote() {
     const f = $('list-foot');
     f.replaceChildren();
     if (useAI()) {
-      f.append(svg('i-spark'), 'AI 辨識已開啟：拍照時照片會傳給 Claude 辨識。', document.createElement('br'), '名片資料仍只存在這支手機，換手機前請先匯出 CSV。');
+      f.append(svg('i-spark'), `AI 辨識已開啟：拍照時照片會傳給 ${providerLabel()} 辨識。`, document.createElement('br'), '名片資料仍只存在這支手機，換手機前請先匯出 CSV。');
     } else {
       f.append(svg('i-lock'), '照片與資料只存在這支手機，不會上傳。', document.createElement('br'), '換手機或清除資料前，請先匯出 CSV 備份。');
     }
@@ -87,21 +89,33 @@
       CardAI.MODELS.forEach((m) => sel.append(new Option(m.label, m.id)));
     }
     sel.value = settings.model;
-    $('ai-settings').hidden = settings.mode !== 'ai';
+    $('set-ds-key').value = settings.dsKey;
+    $('set-ds-model').value = settings.dsModel;
+    $('set-provider').value = settings.provider;
+    syncSettingsUI();
     show('settings');
   }
+  function syncSettingsUI() {
+    $('ai-settings').hidden = settings.mode !== 'ai';
+    $('ds-settings').hidden = settings.provider !== 'deepseek';
+    $('cl-settings').hidden = settings.provider !== 'claude';
+  }
+  $('set-provider').addEventListener('change', (e) => { settings.provider = e.target.value; syncSettingsUI(); saveSettings(); });
+  $('set-ds-key').addEventListener('change', (e) => { settings.dsKey = e.target.value.trim(); saveSettings(); });
+  $('set-ds-model').addEventListener('change', (e) => { settings.dsModel = e.target.value.trim() || CardAI.DEEPSEEK_DEFAULT_MODEL; saveSettings(); });
   document.querySelectorAll('input[name=mode]').forEach((r) => r.addEventListener('change', () => {
     settings.mode = r.value;
-    $('ai-settings').hidden = settings.mode !== 'ai';
+    syncSettingsUI();
     saveSettings();
-    if (settings.mode === 'ai' && !settings.apiKey) $('set-key').focus();
   }));
   $('set-key').addEventListener('change', (e) => { settings.apiKey = e.target.value.trim(); saveSettings(); });
   $('set-model').addEventListener('change', (e) => { settings.model = e.target.value; saveSettings(); });
   function leaveSettings() {
     settings.apiKey = $('set-key').value.trim();
+    settings.dsKey = $('set-ds-key').value.trim();
+    settings.dsModel = $('set-ds-model').value.trim() || CardAI.DEEPSEEK_DEFAULT_MODEL;
     saveSettings();
-    if (settings.mode === 'ai' && !settings.apiKey) toast('尚未填 API Key，會先用本機辨識');
+    if (settings.mode === 'ai' && !aiKey()) toast('尚未填 API Key，會先用本機辨識');
     show('list');
   }
 
@@ -560,11 +574,12 @@
 
   async function runAiOcr(run) {
     els.previewWrap.classList.add('ai');
-    setStatus('AI 辨識中…', 0.25, '', { ai: true, spin: true });
+    setStatus(`${providerLabel()} 辨識中…`, 0.25, '', { ai: true, spin: true });
     const jpeg = drawScaled(currentImage.img, 1568, currentImage.rotation).toDataURL('image/jpeg', 0.85);
-    const { fields } = await CardAI.extract({
-      apiKey: settings.apiKey,
-      model: settings.model,
+    const provider = CardAI.PROVIDERS[settings.provider];
+    const { fields } = await provider.extract({
+      apiKey: aiKey(),
+      model: settings.provider === 'claude' ? settings.model : settings.dsModel,
       imageBase64: jpeg.slice(jpeg.indexOf(',') + 1),
     });
     if (run !== ocrRun) return;

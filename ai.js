@@ -117,5 +117,82 @@
     return { fields: out, model: response.model, usage: response.usage };
   }
 
-  root.CardAI = { extract, MODELS, DEFAULT_MODEL };
+  // ---------- DeepSeek（OpenAI 相容格式） ----------
+  const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
+  const DEEPSEEK_DEFAULT_MODEL = 'deepseek-flash'; // 支援圖片輸入的模型
+
+  const DEEPSEEK_SYSTEM = SYSTEM + '\n- 只輸出一個 JSON 物件，不要任何說明文字或 Markdown。JSON 欄位固定為：' +
+    JSON.stringify(Object.fromEntries(FIELD_KEYS.map((k) => [k, SCHEMA.properties[k].description])));
+
+  function deepseekError(status, body) {
+    const msg = (body && body.error && body.error.message) || '';
+    if (status === 401) return 'DeepSeek API Key 無效，請到設定檢查';
+    if (status === 402) return 'DeepSeek 帳戶餘額不足，請先儲值';
+    if (status === 429) return 'DeepSeek 呼叫太頻繁，請稍後再試';
+    if (status >= 500) return 'DeepSeek 服務暫時忙碌，請稍後再試';
+    return `DeepSeek 錯誤 ${status}${msg ? '：' + msg : ''}`;
+  }
+
+  function parseJsonLoose(text) {
+    const t = String(text || '').replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+    try { return JSON.parse(t); } catch (e) { /* 再試著抓第一個 {...} */ }
+    const m = t.match(/\{[\s\S]*\}/);
+    if (m) return JSON.parse(m[0]);
+    throw new Error('AI 回傳格式無法解析');
+  }
+
+  async function postDeepseek(apiKey, body) {
+    let res;
+    try {
+      res = await fetch(DEEPSEEK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      throw new Error('無法連線 DeepSeek（網路問題或瀏覽器擋住跨網域請求）');
+    }
+    let json = null;
+    try { json = await res.json(); } catch (e) { /* ignore */ }
+    return { res, json };
+  }
+
+  async function extractDeepseek({ apiKey, model, imageBase64 }) {
+    const body = {
+      model: model || DEEPSEEK_DEFAULT_MODEL,
+      max_tokens: 2000,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: DEEPSEEK_SYSTEM },
+        {
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + imageBase64 } },
+            { type: 'text', text: '請擷取這張名片的資料，以 json 輸出。' },
+          ],
+        },
+      ],
+    };
+    let { res, json } = await postDeepseek(apiKey, body);
+    // 有些模型不接受 JSON mode，拿掉再試一次
+    if (res.status === 400 || res.status === 422) {
+      delete body.response_format;
+      ({ res, json } = await postDeepseek(apiKey, body));
+    }
+    if (!res.ok) throw new Error(deepseekError(res.status, json));
+    const choice = json && json.choices && json.choices[0];
+    if (!choice || !choice.message) throw new Error('AI 沒有回傳資料');
+    if (choice.finish_reason === 'length') throw new Error('AI 回應被截斷，請重試');
+    const data = parseJsonLoose(choice.message.content);
+    const out = {};
+    FIELD_KEYS.forEach((k) => { out[k] = typeof data[k] === 'string' ? data[k].trim() : ''; });
+    return { fields: out, model: json.model, usage: json.usage };
+  }
+
+  const PROVIDERS = {
+    deepseek: { label: 'DeepSeek', extract: extractDeepseek, defaultModel: DEEPSEEK_DEFAULT_MODEL },
+    claude: { label: 'Claude', extract, defaultModel: DEFAULT_MODEL },
+  };
+
+  root.CardAI = { extract, MODELS, DEFAULT_MODEL, PROVIDERS, DEEPSEEK_DEFAULT_MODEL };
 })(self);
