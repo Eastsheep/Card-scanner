@@ -36,6 +36,7 @@
       <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
       <symbol id="i-gear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></g></symbol>
       <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2.5c.6 4.6 2.9 6.9 7.5 7.5-4.6.6-6.9 2.9-7.5 7.5-.6-4.6-2.9-6.9-7.5-7.5 4.6-.6 6.9-2.9 7.5-7.5Z" fill="currentColor"/><path d="M19 15.5c.3 2 1.2 2.9 3.2 3.2-2 .3-2.9 1.2-3.2 3.2-.3-2-1.2-2.9-3.2-3.2 2-.3 2.9-1.2 3.2-3.2Z" fill="currentColor" opacity=".6"/></symbol>
+      <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 3v11M7.5 9.5 12 14l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
       <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     </defs>
   </svg>
@@ -253,10 +254,17 @@
       </div>
       <p class="hint">自動找出名片邊緣、拉正並裁掉背景，再消除陰影、提亮底色，辨識更準，存下的名片照片也更清楚。</p>
 
+      <h3 class="group-title">備份與換手機</h3>
+      <div class="group">
+        <button class="row action" id="btn-backup" type="button"><span>匯出完整備份（含照片）</span><svg><use href="#i-share"/></svg></button>
+        <label class="row action"><span>從備份檔還原</span><svg><use href="#i-import"/></svg><input id="file-restore" type="file" accept=".json,application/json" hidden></label>
+      </div>
+      <p class="hint">換手機時：在舊手機匯出備份，用 AirDrop、iCloud 雲碟或 Email 傳到新手機，在新手機打開 App 按「從備份檔還原」選這個檔案。已經有的名片不會重複。API Key 不會放進備份，新手機需重新填寫。</p>
+
       <h3 class="group-title">關於</h3>
       <div class="group info">
         <div class="row"><span class="k">名片資料存放</span><span class="v">只存在這支手機（不會上傳到 GitHub 或任何伺服器）</span></div>
-        <div class="row"><span class="k">備份</span><span class="v">首頁右上「匯出」產生 CSV，可存到「檔案」或寄 Email</span></div>
+        <div class="row"><span class="k">備份</span><span class="v">首頁右上「匯出」產生 CSV（Excel 用，不含照片）；設定頁「匯出完整備份」含照片，可用來換手機</span></div>
       </div>
     </main>
   </section>

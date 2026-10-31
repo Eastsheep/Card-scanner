@@ -53,6 +53,7 @@
   const getAll = () => tx('readonly', (s) => s.getAll());
   const putCard = (c) => tx('readwrite', (s) => s.put(c));
   const deleteCard = (id) => tx('readwrite', (s) => s.delete(id));
+  const putMany = (list) => tx('readwrite', (s) => { list.forEach((c) => s.put(c)); });
 
   // 加到主畫面後，要求瀏覽器不要自動清掉資料
   if (navigator.storage && navigator.storage.persist) {
@@ -783,6 +784,58 @@
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
   }
 
+  // ---------- 完整備份 / 還原 ----------
+  const BACKUP_APP = 'card-scanner';
+
+  async function onBackup() {
+    const all = await getAll();
+    if (!all.length) { toast('還沒有名片可以備份'); return; }
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    const filename = `名片備份_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.json`;
+    const payload = JSON.stringify({ app: BACKUP_APP, version: 1, exportedAt: d.toISOString(), count: all.length, cards: all });
+    const ok = await shareFile(payload, filename, 'application/json');
+    if (ok) toast(`已打包 ${all.length} 張名片（${(payload.length / 1048576).toFixed(1)} MB）`, 3000);
+  }
+
+  async function onRestore(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    let data;
+    try {
+      data = JSON.parse(await file.text());
+    } catch (err) {
+      toast('檔案無法讀取，請確認是名片備份檔', 3000);
+      return;
+    }
+    if (!data || data.app !== BACKUP_APP || !Array.isArray(data.cards)) {
+      toast('這不是名片掃描 App 的備份檔', 3000);
+      return;
+    }
+    const existing = new Map((await getAll()).map((c) => [c.id, c]));
+    const toPut = [];
+    let skipped = 0;
+    data.cards.forEach((c) => {
+      if (!c || typeof c.id !== 'string') return;
+      const cur = existing.get(c.id);
+      // 同一張名片只保留比較新的版本
+      if (cur && (cur.updatedAt || cur.createdAt || '') >= (c.updatedAt || c.createdAt || '')) { skipped++; return; }
+      const clean = { id: c.id, createdAt: c.createdAt || new Date().toISOString(), updatedAt: c.updatedAt || c.createdAt };
+      FIELDS.forEach(([k]) => { clean[k] = typeof c[k] === 'string' ? c[k] : ''; });
+      if (typeof c.thumb === 'string' && c.thumb.startsWith('data:image/')) clean.thumb = c.thumb;
+      if (typeof c.rawText === 'string') clean.rawText = c.rawText;
+      if (typeof c.ocrBy === 'string') clean.ocrBy = c.ocrBy;
+      toPut.push(clean);
+    });
+    if (!toPut.length) { toast(skipped ? `沒有新資料，${skipped} 張已經存在` : '備份檔裡沒有名片', 3000); return; }
+    if (!confirm(`要從備份還原 ${toPut.length} 張名片嗎？${skipped ? `（另有 ${skipped} 張已存在，會略過）` : ''}`)) return;
+    await putMany(toPut);
+    await refresh();
+    toast(`已還原 ${toPut.length} 張名片`, 3000);
+    show('list');
+  }
+
   async function onExport() {
     if (!cards.length) { toast('還沒有名片可以匯出'); return; }
     const d = new Date();
@@ -801,6 +854,8 @@
   $('btn-save').addEventListener('click', onSave);
   $('btn-delete').addEventListener('click', onDelete);
   $('btn-export').addEventListener('click', onExport);
+  $('btn-backup').addEventListener('click', onBackup);
+  $('file-restore').addEventListener('change', onRestore);
   $('btn-detail-back').addEventListener('click', () => show('list'));
   $('btn-detail-edit').addEventListener('click', () => current && openEdit(current));
   $('btn-vcard').addEventListener('click', onVcard);
