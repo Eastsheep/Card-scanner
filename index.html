@@ -102,10 +102,10 @@
         <svg><use href="#i-photo"/></svg>
         <input id="file-photo" type="file" accept="image/*" hidden>
       </label>
-      <label class="fab" aria-label="拍名片">
+      <button class="fab" id="btn-camera" type="button" aria-label="拍名片">
         <svg><use href="#i-camera"/></svg>
-        <input id="file-camera" type="file" accept="image/*" capture="environment" hidden>
-      </label>
+      </button>
+      <input id="file-camera" type="file" accept="image/*" capture="environment" hidden>
       <button class="tab" id="btn-manual" type="button" aria-label="手動輸入">
         <svg><use href="#i-pen"/></svg>
       </button>
@@ -282,6 +282,24 @@
         <div class="row"><span class="k">備份</span><span class="v">首頁右上「匯出」產生 CSV（Excel 用，不含照片）；設定頁「匯出完整備份」含照片，可用來換手機</span></div>
       </div>
     </main>
+  </section>
+
+  <!-- ========== App 內建相機 ========== -->
+  <section id="camera" class="camera" hidden>
+    <video id="cam-video" playsinline muted autoplay></video>
+    <canvas id="cam-still" hidden></canvas>
+    <div class="cam-guide" id="cam-guide"><i></i><i></i><i></i><i></i></div>
+    <p class="cam-tip" id="cam-tip">把名片放進框內，背景深一點更好裁切</p>
+    <div class="cam-bar">
+      <button class="cam-text" id="cam-cancel" type="button">取消</button>
+      <button class="shutter" id="cam-shutter" type="button" aria-label="拍照"></button>
+      <button class="cam-text" id="cam-torch" type="button" hidden>閃光燈</button>
+      <span class="cam-spacer" id="cam-spacer"></span>
+    </div>
+    <div class="cam-bar review" id="cam-review" hidden>
+      <button class="cam-text" id="cam-retake" type="button">重拍</button>
+      <button class="cam-text strong" id="cam-use" type="button">使用照片</button>
+    </div>
   </section>
 
   <!-- 圖片放大 -->

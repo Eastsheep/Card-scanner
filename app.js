@@ -700,11 +700,19 @@
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!file) return;
+    try {
+      processImage(await loadImage(file));
+    } catch (err) {
+      toast(err.message || '無法讀取圖片');
+    }
+  }
+
+  // 照片（Image 或 Canvas）→ 裁切優化 → 辨識
+  function processImage(orig) {
     openEdit(null);
     const origBtn = $('btn-original');
     origBtn.hidden = true;
     try {
-      const orig = await loadImage(file);
       let img = orig;
       let enhanced = false;
       if (settings.enhance !== false) {
@@ -744,6 +752,102 @@
     runOcr();
   }
   $('btn-original').addEventListener('click', onToggleOriginal);
+
+  // ---------- App 內建相機：按下快門當下就鎖定畫面 ----------
+  const cam = { stream: null, track: null, torch: false };
+
+  async function openCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $('file-camera').click(); // 不支援就用系統相機
+      return;
+    }
+    const box = $('camera');
+    const video = $('cam-video');
+    box.hidden = false;
+    setCamFrozen(false);
+    try {
+      cam.stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } },
+      });
+      cam.track = cam.stream.getVideoTracks()[0];
+      video.srcObject = cam.stream;
+      await video.play().catch(() => {});
+      // 有閃光燈（手電筒）才顯示按鈕
+      const caps = cam.track.getCapabilities ? cam.track.getCapabilities() : {};
+      $('cam-torch').hidden = !caps.torch;
+      $('cam-spacer').hidden = !!caps.torch;
+    } catch (err) {
+      console.error(err);
+      closeCamera();
+      toast('無法開啟相機，改用系統相機', 2600);
+      $('file-camera').click();
+    }
+  }
+
+  function closeCamera() {
+    if (cam.stream) cam.stream.getTracks().forEach((t) => t.stop());
+    cam.stream = null; cam.track = null; cam.torch = false;
+    $('cam-video').srcObject = null;
+    $('camera').hidden = true;
+  }
+
+  function setCamFrozen(frozen) {
+    $('camera').classList.toggle('frozen', frozen);
+    $('cam-still').hidden = !frozen;
+    $('cam-video').hidden = frozen;
+    $('cam-review').hidden = !frozen;
+    document.querySelector('#camera .cam-bar:not(.review)').hidden = frozen;
+  }
+
+  function onShutter() {
+    const video = $('cam-video');
+    if (!video.videoWidth) return;
+    // 立刻抓這一幀，之後怎麼移動手機都不影響
+    const still = $('cam-still');
+    still.width = video.videoWidth;
+    still.height = video.videoHeight;
+    still.getContext('2d').drawImage(video, 0, 0);
+    const f = document.createElement('div');
+    f.className = 'flash';
+    $('camera').append(f);
+    setTimeout(() => f.remove(), 300);
+    haptic();
+    setCamFrozen(true);
+    video.pause();
+  }
+
+  function onRetake() {
+    setCamFrozen(false);
+    $('cam-video').play().catch(() => {});
+  }
+
+  function onUsePhoto() {
+    const still = $('cam-still');
+    const copy = document.createElement('canvas');
+    copy.width = still.width; copy.height = still.height;
+    copy.getContext('2d').drawImage(still, 0, 0);
+    closeCamera();
+    processImage(copy);
+  }
+
+  async function onTorch() {
+    if (!cam.track) return;
+    cam.torch = !cam.torch;
+    try {
+      await cam.track.applyConstraints({ advanced: [{ torch: cam.torch }] });
+      $('cam-torch').classList.toggle('strong', cam.torch);
+    } catch (e) { /* 不支援就算了 */ }
+  }
+
+  $('btn-camera').addEventListener('click', openCamera);
+  $('cam-shutter').addEventListener('click', onShutter);
+  $('cam-cancel').addEventListener('click', closeCamera);
+  $('cam-retake').addEventListener('click', onRetake);
+  $('cam-use').addEventListener('click', onUsePhoto);
+  $('cam-torch').addEventListener('click', onTorch);
+  // App 切到背景時關掉相機，避免一直佔用
+  document.addEventListener('visibilitychange', () => { if (document.hidden && cam.stream && !$('camera').classList.contains('frozen')) closeCamera(); });
 
   // 使用者手動改過的欄位就不再標示為自動填入
   els.form.addEventListener('input', (e) => {
