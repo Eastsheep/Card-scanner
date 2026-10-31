@@ -306,7 +306,7 @@ svg { width: 22px; height: 22px; flex: none; }
 /* ---------- 設定 ---------- */
 .nav-row { justify-content: space-between; }
 #btn-settings { padding-left: 0; padding-right: 8px; }
-#btn-settings svg { width: 24px; height: 24px; }
+#btn-settings svg { width: 26px; height: 26px; }
 .choice .row { align-items: flex-start; gap: 12px; padding: 12px 16px; cursor: pointer; }
 .choice input[type=radio] {
   appearance: none; -webkit-appearance: none; width: 22px; height: 22px; margin: 2px 0 0; flex: none;
