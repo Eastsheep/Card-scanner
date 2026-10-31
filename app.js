@@ -601,7 +601,7 @@
     els.ocrStatus.className = 'scan-status' + (state ? ' ' + state : '');
   }
 
-  const ocrSource = () => (currentImage.useOriginal ? currentImage.orig : currentImage.img);
+  const ocrSource = () => currentImage.img;
 
   function applyParsed(parsed) {
     // 使用者自己填的欄位不覆蓋
@@ -691,8 +691,7 @@
   }
 
   function showCurrentImage() {
-    const src = currentImage.useOriginal ? currentImage.orig : currentImage.img;
-    editing.thumb = drawScaled(src, 1000, currentImage.rotation).toDataURL('image/jpeg', 0.8);
+    editing.thumb = drawScaled(currentImage.img, 1000, currentImage.rotation).toDataURL('image/jpeg', 0.8);
     els.preview.src = editing.thumb;
   }
 
@@ -707,27 +706,37 @@
     }
   }
 
-  // 照片（Image 或 Canvas）→ 裁切優化 → 辨識
-  function processImage(orig) {
+  function imgSize(src) {
+    return [src.naturalWidth || src.width, src.naturalHeight || src.height];
+  }
+
+  function defaultCorners(src) {
+    const [w, h] = imgSize(src);
+    const mx = w * 0.06, my = h * 0.06;
+    return [[mx, my], [w - mx, my], [w - mx, h - my], [mx, h - my]];
+  }
+
+  function initialCorners(src) {
+    if (settings.enhance !== false) {
+      try {
+        const c = CardEnhance.detectCard(src);
+        if (c) return c;
+      } catch (e) { console.error(e); }
+    }
+    return defaultCorners(src);
+  }
+
+  function applyCrop(orig, corners) {
+    return corners ? CardEnhance.warp(orig, corners) : drawScaled(orig, 2000);
+  }
+
+  // 照片（Image 或 Canvas）→ 使用者確認裁切 → 辨識
+  async function processImage(orig) {
+    const corners = await openCropper(orig, initialCorners(orig));
     openEdit(null);
-    const origBtn = $('btn-original');
-    origBtn.hidden = true;
     try {
-      let img = orig;
-      let enhanced = false;
-      if (settings.enhance !== false) {
-        try {
-          const r = CardEnhance.enhance(orig);
-          img = r.canvas;
-          enhanced = true;
-          if (!r.cropped) toast('沒找到名片邊緣，只做光線優化', 2600);
-        } catch (err) {
-          console.error(err);
-        }
-      }
-      currentImage = { img, orig, rotation: 0, useOriginal: false, autoFilled: new Set() };
-      origBtn.hidden = !enhanced;
-      origBtn.textContent = '看原圖';
+      currentImage = { orig, corners, img: applyCrop(orig, corners), rotation: 0, autoFilled: new Set() };
+      $('btn-crop').hidden = false;
       showCurrentImage();
       els.previewWrap.hidden = false;
       runOcr();
@@ -743,15 +752,101 @@
     runOcr();
   }
 
-  // 優化後的照片和原圖切換，切換後重新辨識
-  function onToggleOriginal() {
+  // 編輯畫面再次調整裁切
+  async function onRecrop() {
     if (!currentImage) return;
-    currentImage.useOriginal = !currentImage.useOriginal;
-    $('btn-original').textContent = currentImage.useOriginal ? '用優化圖' : '看原圖';
+    const ci = currentImage;
+    const corners = await openCropper(ci.orig, ci.corners || defaultCorners(ci.orig));
+    if (currentImage !== ci) return;
+    ci.corners = corners;
+    ci.img = applyCrop(ci.orig, corners);
     showCurrentImage();
     runOcr();
   }
-  $('btn-original').addEventListener('click', onToggleOriginal);
+  $('btn-crop').addEventListener('click', onRecrop);
+
+  // ---------- 手動裁切畫面：拖動四個角 ----------
+  // 回傳原圖座標的四個角；按「不裁切」回傳 null
+  function openCropper(src, startCorners) {
+    return new Promise((resolve) => {
+      const box = $('cropper');
+      const stage = $('crop-stage');
+      const canvas = $('crop-canvas');
+      const svg = $('crop-svg');
+      const handles = $('crop-handles');
+      box.hidden = false;
+      const [w, h] = imgSize(src);
+      const sr = stage.getBoundingClientRect();
+      const scale = Math.min((sr.width - 32) / w, (sr.height - 32) / h);
+      const dw = Math.round(w * scale), dh = Math.round(h * scale);
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(dw * dpr); canvas.height = Math.round(dh * dpr);
+      canvas.style.width = dw + 'px'; canvas.style.height = dh + 'px';
+      canvas.getContext('2d').drawImage(src, 0, 0, canvas.width, canvas.height);
+      svg.setAttribute('viewBox', `0 0 ${dw} ${dh}`);
+
+      // 以畫面座標操作
+      let pts = startCorners.map(([x, y]) => [x * scale, y * scale]);
+      const ns = 'http://www.w3.org/2000/svg';
+      handles.replaceChildren();
+      const circles = pts.map(() => {
+        const g = document.createElementNS(ns, 'g');
+        const ring = document.createElementNS(ns, 'circle');
+        ring.setAttribute('r', '13'); ring.setAttribute('class', 'ring');
+        const hit = document.createElementNS(ns, 'circle');
+        hit.setAttribute('r', '30'); hit.setAttribute('class', 'hit');
+        g.append(ring, hit);
+        handles.append(g);
+        return g;
+      });
+      function draw() {
+        const poly = pts.map((p) => p.join(',')).join(' ');
+        $('crop-poly').setAttribute('points', poly);
+        $('crop-mask').setAttribute('d', `M0 0H${dw}V${dh}H0Z M${pts.map((p) => p.join(' ')).join(' L')} Z`);
+        circles.forEach((g, i) => g.setAttribute('transform', `translate(${pts[i][0]} ${pts[i][1]})`));
+      }
+      draw();
+
+      let active = -1;
+      const toLocal = (e) => {
+        const r = svg.getBoundingClientRect();
+        return [Math.min(dw, Math.max(0, e.clientX - r.left)), Math.min(dh, Math.max(0, e.clientY - r.top))];
+      };
+      function down(e) {
+        const [x, y] = toLocal(e);
+        let best = -1, bd = 48;
+        pts.forEach((p, i) => { const d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; best = i; } });
+        if (best < 0) return;
+        active = best;
+        svg.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      }
+      function move(e) {
+        if (active < 0) return;
+        pts[active] = toLocal(e);
+        draw();
+        e.preventDefault();
+      }
+      function up() { active = -1; }
+      svg.addEventListener('pointerdown', down);
+      svg.addEventListener('pointermove', move);
+      svg.addEventListener('pointerup', up);
+      svg.addEventListener('pointercancel', up);
+
+      function finish(result) {
+        svg.removeEventListener('pointerdown', down);
+        svg.removeEventListener('pointermove', move);
+        svg.removeEventListener('pointerup', up);
+        svg.removeEventListener('pointercancel', up);
+        $('crop-done').onclick = $('crop-skip').onclick = $('crop-reset').onclick = null;
+        box.hidden = true;
+        resolve(result);
+      }
+      $('crop-done').onclick = () => finish(pts.map(([x, y]) => [x / scale, y / scale]));
+      $('crop-skip').onclick = () => finish(null);
+      $('crop-reset').onclick = () => { pts = initialCorners(src).map(([x, y]) => [x * scale, y * scale]); draw(); };
+    });
+  }
 
   // ---------- App 內建相機：按下快門當下就鎖定畫面 ----------
   const cam = { stream: null, track: null, torch: false };

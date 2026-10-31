@@ -1,4 +1,4 @@
-// 名片照片優化：找出名片四角 → 透視校正裁切 → 去陰影提亮
+// 名片照片裁切：找出名片四角 → 透視校正（拉正）
 // 純 Canvas 實作，不需要額外函式庫
 (function (root) {
   'use strict';
@@ -348,78 +348,5 @@
     return out;
   }
 
-  // ---------- 光線優化 ----------
-  // 估計整張的照明（大範圍模糊後的亮部），用除法拉平陰影，再做對比拉伸
-  function relight(canvas) {
-    const w = canvas.width, h = canvas.height;
-    const ctx = canvas.getContext('2d');
-    const img = ctx.getImageData(0, 0, w, h);
-    const d = img.data;
-
-    // 小尺寸亮度圖 → 最大值濾波（去掉文字）→ 模糊 = 照明圖
-    const sw = Math.max(8, Math.round(w / 16)), sh = Math.max(8, Math.round(h / 16));
-    const small = canvasOf(sw, sh);
-    const sctx = small.getContext('2d');
-    sctx.drawImage(canvas, 0, 0, sw, sh);
-    const sdat = sctx.getImageData(0, 0, sw, sh);
-    const L = new Float32Array(sw * sh);
-    for (let i = 0, j = 0; j < L.length; i += 4, j++) L[j] = 0.299 * sdat.data[i] + 0.587 * sdat.data[i + 1] + 0.114 * sdat.data[i + 2];
-    const r = 2;
-    const mx = new Float32Array(L.length);
-    for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
-      let m = 0;
-      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-        const xx = Math.min(sw - 1, Math.max(0, x + dx)), yy = Math.min(sh - 1, Math.max(0, y + dy));
-        if (L[yy * sw + xx] > m) m = L[yy * sw + xx];
-      }
-      mx[y * sw + x] = m;
-    }
-    for (let j = 0, i = 0; j < mx.length; j++, i += 4) { sdat.data[i] = sdat.data[i + 1] = sdat.data[i + 2] = mx[j]; sdat.data[i + 3] = 255; }
-    sctx.putImageData(sdat, 0, 0);
-    // 放大回原尺寸時瀏覽器做平滑插值，再加一點模糊
-    const illum = canvasOf(w, h);
-    const ictx = illum.getContext('2d');
-    ictx.imageSmoothingEnabled = true;
-    ictx.imageSmoothingQuality = 'high';
-    if ('filter' in ictx) ictx.filter = `blur(${Math.round(Math.max(w, h) / 60)}px)`;
-    ictx.drawImage(small, 0, 0, w, h);
-    const il = ictx.getImageData(0, 0, w, h).data;
-
-    // 除以照明，讓白底變白、陰影消失
-    const lum = new Uint8Array(w * h);
-    for (let i = 0, j = 0; i < d.length; i += 4, j++) {
-      const k = 242 / Math.max(40, il[i]);
-      const f = Math.min(3, k);
-      d[i] = Math.min(255, d[i] * f);
-      d[i + 1] = Math.min(255, d[i + 1] * f);
-      d[i + 2] = Math.min(255, d[i + 2] * f);
-      lum[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-    }
-    // 對比拉伸：最暗 1% 變黑，最亮 2% 變白
-    const hist = new Uint32Array(256);
-    for (let j = 0; j < lum.length; j++) hist[lum[j]]++;
-    const pct = (p) => { let acc = 0; const target = lum.length * p; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= target) return v; } return 255; };
-    const lo = pct(0.01), hi = Math.max(lo + 30, pct(0.98));
-    const lut = new Uint8Array(256);
-    for (let v = 0; v < 256; v++) lut[v] = Math.max(0, Math.min(255, Math.round(((v - lo) * 255) / (hi - lo))));
-    for (let i = 0; i < d.length; i += 4) { d[i] = lut[d[i]]; d[i + 1] = lut[d[i + 1]]; d[i + 2] = lut[d[i + 2]]; }
-    ctx.putImageData(img, 0, 0);
-    return canvas;
-  }
-
-  // 回傳 { canvas, cropped }，失敗時 cropped=false 只做光線優化
-  function enhance(src) {
-    let corners = null;
-    try { corners = detectCard(src); } catch (e) { corners = null; }
-    let canvas;
-    if (corners) {
-      canvas = warp(src, corners);
-    } else {
-      canvas = drawFit(src, OUT_MAX).canvas;
-    }
-    relight(canvas);
-    return { canvas, cropped: !!corners, corners };
-  }
-
-  root.CardEnhance = { enhance, detectCard };
+  root.CardEnhance = { detectCard, warp };
 })(self);

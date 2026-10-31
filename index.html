@@ -174,7 +174,7 @@
             <span class="badge" id="ocr-badge" hidden>AI</span>
           </div>
           <div class="pills">
-            <button class="pill" id="btn-original" type="button" hidden>看原圖</button>
+            <button class="pill" id="btn-crop" type="button" hidden>裁切</button>
             <button class="pill" id="btn-rotate" type="button"><svg><use href="#i-rotate"/></svg>旋轉重掃</button>
           </div>
         </div>
@@ -265,9 +265,9 @@
 
       <h3 class="group-title">拍照</h3>
       <div class="group">
-        <label class="row switch-row"><span>自動裁切與光線優化</span><input type="checkbox" class="switch" id="set-enhance"></label>
+        <label class="row switch-row"><span>自動偵測名片邊緣</span><input type="checkbox" class="switch" id="set-enhance"></label>
       </div>
-      <p class="hint">自動找出名片邊緣、拉正並裁掉背景，再消除陰影、提亮底色，辨識更準，存下的名片照片也更清楚。</p>
+      <p class="hint">拍完照會先進入裁切畫面，開啟時會自動把四個角對到名片邊緣，你再微調就好；關閉時四個角從畫面四周開始。</p>
 
       <h3 class="group-title">備份與換手機</h3>
       <div class="group">
@@ -299,6 +299,26 @@
     <div class="cam-bar review" id="cam-review" hidden>
       <button class="cam-text" id="cam-retake" type="button">重拍</button>
       <button class="cam-text strong" id="cam-use" type="button">使用照片</button>
+    </div>
+  </section>
+
+  <!-- ========== 手動裁切 ========== -->
+  <section id="cropper" class="camera cropper" hidden>
+    <p class="cam-tip">拖動四個角，對齊名片邊緣</p>
+    <div class="crop-stage" id="crop-stage">
+      <div class="crop-box" id="crop-box">
+        <canvas id="crop-canvas"></canvas>
+        <svg id="crop-svg">
+          <path id="crop-mask" fill-rule="evenodd"></path>
+          <polygon id="crop-poly"></polygon>
+          <g id="crop-handles"></g>
+        </svg>
+      </div>
+    </div>
+    <div class="cam-bar crop-bar">
+      <button class="cam-text" id="crop-skip" type="button">不裁切</button>
+      <button class="cam-text" id="crop-reset" type="button">重設</button>
+      <button class="cam-text strong" id="crop-done" type="button">完成</button>
     </div>
   </section>
 
