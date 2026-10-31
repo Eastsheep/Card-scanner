@@ -224,9 +224,10 @@
           <h3 class="group-title">DeepSeek API</h3>
           <div class="group form">
             <label class="row"><span>API Key</span><input id="set-ds-key" type="password" placeholder="sk-…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-            <label class="row"><span>模型</span><input id="set-ds-model" placeholder="deepseek-flash" autocapitalize="off" spellcheck="false"></label>
+            <label class="row"><span>模型</span><select id="set-ds-model"></select></label>
+            <button class="row action" id="btn-ds-models" type="button"><span>從帳號載入可用模型</span><svg><use href="#i-rotate"/></svg></button>
           </div>
-          <p class="hint">到 <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">DeepSeek 開放平台</a> 建立 API Key 後貼上。模型請用支援圖片的 deepseek-flash（deepseek-v4-pro 不支援圖片）。照片會傳到 DeepSeek 伺服器處理。費用估計每張約 NT$0.05 以內，實際以帳單為準。</p>
+          <p class="hint">到 <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">DeepSeek 開放平台</a> 建立 API Key 後貼上。模型需支援圖片輸入，目前是 deepseek-flash；不確定的話按下方「測試」就知道。照片會傳到 DeepSeek 伺服器處理。費用估計每張約 NT$0.05 以內，實際以帳單為準。</p>
         </div>
 
         <div id="cl-settings">
@@ -236,6 +237,11 @@
             <label class="row"><span>模型</span><select id="set-model"></select></label>
           </div>
           <p class="hint">到 <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic Console</a> 建立 API Key 後貼上。照片會傳到 Anthropic 處理。費用估計：Opus 5.5 每張約 NT$1 以內，Haiku 5.5 每張約 NT$0.1 以內，實際以帳單為準。</p>
+        </div>
+        <h3 class="group-title">測試</h3>
+        <div class="group">
+          <button class="row action" id="btn-test-ai" type="button"><span>用測試名片試辨識</span><svg><use href="#i-spark"/></svg></button>
+          <div class="row test-result" id="test-result" hidden></div>
         </div>
         <p class="hint">API Key 只存在這支手機，只會傳給你選的服務商。AI 失敗時會自動改用本機辨識。</p>
       </div>

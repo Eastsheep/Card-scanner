@@ -61,7 +61,7 @@
 
   // ---------- 設定（只存在這支手機） ----------
   const SETTINGS_KEY = 'card-scanner-settings';
-  let settings = { mode: 'local', provider: 'deepseek', apiKey: '', model: CardAI.DEFAULT_MODEL, dsKey: '', dsModel: CardAI.DEEPSEEK_DEFAULT_MODEL };
+  let settings = { mode: 'local', provider: 'deepseek', apiKey: '', model: CardAI.DEFAULT_MODEL, dsKey: '', dsModel: CardAI.DEEPSEEK_DEFAULT_MODEL, dsModels: [] };
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) { /* 無痕模式等 */ }
   function saveSettings() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
@@ -90,19 +90,92 @@
     }
     sel.value = settings.model;
     $('set-ds-key').value = settings.dsKey;
-    $('set-ds-model').value = settings.dsModel;
+    renderDsModels();
     $('set-provider').value = settings.provider;
     syncSettingsUI();
     show('settings');
   }
   function syncSettingsUI() {
+    $('test-result').hidden = true;
     $('ai-settings').hidden = settings.mode !== 'ai';
     $('ds-settings').hidden = settings.provider !== 'deepseek';
     $('cl-settings').hidden = settings.provider !== 'claude';
   }
   $('set-provider').addEventListener('change', (e) => { settings.provider = e.target.value; syncSettingsUI(); saveSettings(); });
   $('set-ds-key').addEventListener('change', (e) => { settings.dsKey = e.target.value.trim(); saveSettings(); });
-  $('set-ds-model').addEventListener('change', (e) => { settings.dsModel = e.target.value.trim() || CardAI.DEEPSEEK_DEFAULT_MODEL; saveSettings(); });
+  $('set-ds-model').addEventListener('change', (e) => { settings.dsModel = e.target.value; saveSettings(); });
+
+  function renderDsModels() {
+    const sel = $('set-ds-model');
+    const ids = Array.from(new Set([CardAI.DEEPSEEK_DEFAULT_MODEL, ...(settings.dsModels || []), settings.dsModel].filter(Boolean)));
+    sel.replaceChildren(...ids.map((id) => new Option(id === CardAI.DEEPSEEK_DEFAULT_MODEL ? id + '（建議）' : id, id)));
+    sel.value = settings.dsModel;
+  }
+
+  async function onLoadDsModels() {
+    const key = $('set-ds-key').value.trim();
+    if (!key) { toast('請先填 API Key'); return; }
+    const btn = $('btn-ds-models');
+    btn.disabled = true;
+    btn.querySelector('span').textContent = '載入中…';
+    try {
+      const ids = await CardAI.listDeepseekModels(key);
+      settings.dsKey = key;
+      settings.dsModels = ids;
+      saveSettings();
+      renderDsModels();
+      toast(`找到 ${ids.length} 個模型`);
+    } catch (e) {
+      toast(e.message, 3500);
+    } finally {
+      btn.disabled = false;
+      btn.querySelector('span').textContent = '從帳號載入可用模型';
+    }
+  }
+
+  async function onTestAI() {
+    settings.apiKey = $('set-key').value.trim();
+    settings.dsKey = $('set-ds-key').value.trim();
+    saveSettings();
+    const box = $('test-result');
+    const btn = $('btn-test-ai');
+    if (!aiKey()) { toast('請先填 API Key'); return; }
+    const model = settings.provider === 'claude' ? settings.model : settings.dsModel;
+    box.hidden = false;
+    box.className = 'row test-result run';
+    box.replaceChildren(el('div', 'head', `測試中：${providerLabel()} / ${model}…`));
+    btn.disabled = true;
+    try {
+      const r = await CardAI.testProvider(settings.provider, { apiKey: aiKey(), model });
+      const allOk = r.passed === r.checks.length;
+      box.className = 'row test-result ' + (allOk ? 'ok' : 'err');
+      const head = allOk
+        ? `✓ 成功：讀對 ${r.passed}/${r.checks.length} 個欄位，耗時 ${(r.ms / 1000).toFixed(1)} 秒`
+        : `△ 連線成功，但只讀對 ${r.passed}/${r.checks.length} 個欄位（這個模型可能不支援圖片）`;
+      const img = document.createElement('img');
+      img.src = r.image;
+      img.alt = '測試名片';
+      const dl = document.createElement('dl');
+      [['模型', r.model], ['姓名', r.fields.name], ['公司', r.fields.company], ['職稱', r.fields.title], ['手機', r.fields.mobile], ['Email', r.fields.email]].forEach(([k, v]) => {
+        dl.append(el('dt', '', k), el('dd', '', v || '（空白）'));
+      });
+      box.replaceChildren(el('div', 'head', head), img, dl);
+    } catch (e) {
+      box.className = 'row test-result err';
+      box.replaceChildren(el('div', 'head', '✕ 失敗：' + e.message));
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  $('btn-ds-models').addEventListener('click', onLoadDsModels);
+  $('btn-test-ai').addEventListener('click', onTestAI);
   document.querySelectorAll('input[name=mode]').forEach((r) => r.addEventListener('change', () => {
     settings.mode = r.value;
     syncSettingsUI();
@@ -113,7 +186,7 @@
   function leaveSettings() {
     settings.apiKey = $('set-key').value.trim();
     settings.dsKey = $('set-ds-key').value.trim();
-    settings.dsModel = $('set-ds-model').value.trim() || CardAI.DEEPSEEK_DEFAULT_MODEL;
+    settings.dsModel = $('set-ds-model').value || CardAI.DEEPSEEK_DEFAULT_MODEL;
     saveSettings();
     if (settings.mode === 'ai' && !aiKey()) toast('尚未填 API Key，會先用本機辨識');
     show('list');

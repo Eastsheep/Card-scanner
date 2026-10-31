@@ -4,6 +4,7 @@
 
   const MODELS = [
     { id: 'claude-opus-5-5', label: 'Claude Opus 5.5（最準）' },
+    { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5（平衡）' },
     { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5（最快、最省）' },
   ];
   const DEFAULT_MODEL = MODELS[0].id;
@@ -189,10 +190,53 @@
     return { fields: out, model: json.model, usage: json.usage };
   }
 
+  // 列出帳號可用的 DeepSeek 模型
+  async function listDeepseekModels(apiKey) {
+    let res;
+    try {
+      res = await fetch('https://api.deepseek.com/models', { headers: { Authorization: 'Bearer ' + apiKey } });
+    } catch (e) {
+      throw new Error('無法連線 DeepSeek（網路問題或瀏覽器擋住跨網域請求）');
+    }
+    let json = null;
+    try { json = await res.json(); } catch (e) { /* ignore */ }
+    if (!res.ok) throw new Error(deepseekError(res.status, json));
+    return ((json && json.data) || []).map((m) => m.id).filter(Boolean).sort();
+  }
+
+  // 畫一張測試名片，送去辨識，檢查能否讀出關鍵欄位
+  const SAMPLE = { name: '林測試', company: '測試材料股份有限公司', title: '專案經理', mobile: '0912-345-678', email: 'test@example.com' };
+  function sampleCard() {
+    const c = document.createElement('canvas');
+    c.width = 900; c.height = 520;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fbfaf7'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#1f4e79'; g.fillRect(0, 0, 14, c.height);
+    const font = (px, w = 400) => `${w} ${px}px "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif`;
+    g.fillStyle = '#1f4e79'; g.font = font(40, 700); g.fillText(SAMPLE.company, 60, 90);
+    g.fillStyle = '#111'; g.font = font(64, 700); g.fillText(SAMPLE.name, 60, 220);
+    g.fillStyle = '#444'; g.font = font(34); g.fillText(SAMPLE.title, 60, 275);
+    g.font = font(30); g.fillStyle = '#222';
+    g.fillText('Mobile: ' + SAMPLE.mobile, 60, 380);
+    g.fillText('E-mail: ' + SAMPLE.email, 60, 430);
+    return c;
+  }
+
+  async function testProvider(providerKey, { apiKey, model }) {
+    const canvas = sampleCard();
+    const url = canvas.toDataURL('image/jpeg', 0.9);
+    const t0 = performance.now();
+    const { fields, model: usedModel } = await PROVIDERS[providerKey].extract({ apiKey, model, imageBase64: url.slice(url.indexOf(',') + 1) });
+    const ms = Math.round(performance.now() - t0);
+    const norm = (v) => String(v || '').replace(/[\s\-]/g, '').toLowerCase();
+    const checks = ['name', 'mobile', 'email'].map((k) => ({ key: k, ok: norm(fields[k]) === norm(SAMPLE[k]) }));
+    return { ms, model: usedModel || model, fields, checks, image: url, passed: checks.filter((c) => c.ok).length };
+  }
+
   const PROVIDERS = {
     deepseek: { label: 'DeepSeek', extract: extractDeepseek, defaultModel: DEEPSEEK_DEFAULT_MODEL },
     claude: { label: 'Claude', extract, defaultModel: DEFAULT_MODEL },
   };
 
-  root.CardAI = { extract, MODELS, DEFAULT_MODEL, PROVIDERS, DEEPSEEK_DEFAULT_MODEL };
+  root.CardAI = { extract, MODELS, DEFAULT_MODEL, PROVIDERS, DEEPSEEK_DEFAULT_MODEL, listDeepseekModels, testProvider };
 })(self);
