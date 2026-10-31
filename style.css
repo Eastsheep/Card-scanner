@@ -342,3 +342,16 @@ svg { width: 22px; height: 22px; flex: none; }
 .test-result dd { margin: 0; color: var(--text); word-break: break-all; }
 .row.action:disabled { opacity: .45; }
 .form .row .fixed { flex: 1; text-align: right; color: var(--text-2); font-size: 17px; }
+
+.pills { display: flex; gap: 6px; flex: none; }
+.switch-row { justify-content: space-between; cursor: pointer; }
+.switch {
+  appearance: none; -webkit-appearance: none; width: 51px; height: 31px; border-radius: 999px; flex: none;
+  background: var(--fill); position: relative; transition: background .2s; margin: 0; cursor: pointer;
+}
+.switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
+  background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .2); transition: transform .2s;
+}
+.switch:checked { background: var(--green); }
+.switch:checked::after { transform: translateX(20px); }

@@ -157,7 +157,10 @@
             <span id="ocr-msg">準備中…</span>
             <span class="badge" id="ocr-badge" hidden>AI</span>
           </div>
-          <button class="pill" id="btn-rotate" type="button"><svg><use href="#i-rotate"/></svg>旋轉重掃</button>
+          <div class="pills">
+            <button class="pill" id="btn-original" type="button" hidden>看原圖</button>
+            <button class="pill" id="btn-rotate" type="button"><svg><use href="#i-rotate"/></svg>旋轉重掃</button>
+          </div>
         </div>
       </div>
 
@@ -244,6 +247,12 @@
         <p class="hint">API Key 只存在這支手機，只會傳給你選的服務商。AI 失敗時會自動改用本機辨識。</p>
       </div>
 
+      <h3 class="group-title">拍照</h3>
+      <div class="group">
+        <label class="row switch-row"><span>自動裁切與光線優化</span><input type="checkbox" class="switch" id="set-enhance"></label>
+      </div>
+      <p class="hint">自動找出名片邊緣、拉正並裁掉背景，再消除陰影、提亮底色，辨識更準，存下的名片照片也更清楚。</p>
+
       <h3 class="group-title">關於</h3>
       <div class="group info">
         <div class="row"><span class="k">名片資料存放</span><span class="v">只存在這支手機（不會上傳到 GitHub 或任何伺服器）</span></div>
@@ -260,6 +269,7 @@
   <script src="vendor/tesseract.min.js"></script>
   <script src="parser.js"></script>
   <script src="ai.js"></script>
+  <script src="enhance.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -1,9 +1,9 @@
 // 版本號改了就會更新快取
-const VERSION = 'v7';
+const VERSION = 'v8';
 const SHELL = `shell-${VERSION}`;
 const VENDOR = 'vendor-v1'; // 辨識引擎與字庫很大，版本獨立，避免每次更新重新下載
 const SHELL_FILES = [
-  './', 'index.html', 'style.css', 'app.js', 'parser.js', 'ai.js', 'manifest.webmanifest',
+  './', 'index.html', 'style.css', 'app.js', 'parser.js', 'ai.js', 'enhance.js', 'manifest.webmanifest',
   'vendor/tesseract.min.js', 'icons/icon-192.png', 'icons/apple-touch-icon.png',
 ];
 

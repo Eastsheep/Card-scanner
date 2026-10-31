@@ -61,7 +61,7 @@
 
   // ---------- 設定（只存在這支手機） ----------
   const SETTINGS_KEY = 'card-scanner-settings';
-  let settings = { mode: 'local', provider: 'deepseek', apiKey: '', model: CardAI.DEFAULT_MODEL, dsKey: '' };
+  let settings = { mode: 'local', provider: 'deepseek', apiKey: '', model: CardAI.DEFAULT_MODEL, dsKey: '', enhance: true };
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) { /* 無痕模式等 */ }
   function saveSettings() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
@@ -91,6 +91,7 @@
     sel.value = settings.model;
     $('set-ds-key').value = settings.dsKey;
     $('set-provider').value = settings.provider;
+    $('set-enhance').checked = settings.enhance !== false;
     syncSettingsUI();
     show('settings');
   }
@@ -100,6 +101,7 @@
     $('ds-settings').hidden = settings.provider !== 'deepseek';
     $('cl-settings').hidden = settings.provider !== 'claude';
   }
+  $('set-enhance').addEventListener('change', (e) => { settings.enhance = e.target.checked; saveSettings(); });
   $('set-provider').addEventListener('change', (e) => { settings.provider = e.target.value; syncSettingsUI(); saveSettings(); });
   $('set-ds-key').addEventListener('change', (e) => { settings.dsKey = e.target.value.trim(); saveSettings(); });
 
@@ -598,6 +600,8 @@
     els.ocrStatus.className = 'scan-status' + (state ? ' ' + state : '');
   }
 
+  const ocrSource = () => (currentImage.useOriginal ? currentImage.orig : currentImage.img);
+
   function applyParsed(parsed) {
     // 使用者自己填的欄位不覆蓋
     const cur = readForm();
@@ -616,7 +620,7 @@
   async function runAiOcr(run) {
     els.previewWrap.classList.add('ai');
     setStatus(`${providerLabel()} 辨識中…`, 0.25, '', { ai: true, spin: true });
-    const jpeg = drawScaled(currentImage.img, 1568, currentImage.rotation).toDataURL('image/jpeg', 0.85);
+    const jpeg = drawScaled(ocrSource(), 1568, currentImage.rotation).toDataURL('image/jpeg', 0.85);
     const provider = CardAI.PROVIDERS[settings.provider];
     const { fields } = await provider.extract({
       apiKey: aiKey(),
@@ -628,7 +632,7 @@
     els.rawWrap.hidden = true;
     const filled = applyParsed(fields);
     editing.ocrBy = 'ai';
-    if (filled) setStatus(`AI 已辨識 ${filled} 個欄位，請核對`, 1, 'done', { ai: true });
+    if (filled) setStatus(`AI 已辨識 ${filled} 個欄位`, 1, 'done', { ai: true });
     else setStatus('AI 沒有讀到資料，可旋轉重掃或手動輸入', 1, 'error', { ai: true });
   }
 
@@ -639,7 +643,7 @@
       if (run !== ocrRun) return;
       setStatus(prefix + (STATUS_TEXT[m.status] || m.status) + '…', Math.max(0.03, m.progress || 0));
     };
-    const rotated = drawScaled(currentImage.img, 2400, currentImage.rotation);
+    const rotated = drawScaled(ocrSource(), 2400, currentImage.rotation);
     const worker = await getWorker();
     const { data } = await worker.recognize(toOcrCanvas(rotated));
     if (run !== ocrRun) return;
@@ -649,7 +653,7 @@
     els.rawWrap.hidden = !text;
     editing.rawText = text;
     editing.ocrBy = 'local';
-    if (filled) setStatus(`已辨識 ${filled} 個欄位，請核對`, 1, 'done');
+    if (filled) setStatus(`已辨識 ${filled} 個欄位`, 1, 'done');
     else setStatus(text ? '沒抓到欄位，請看辨識原文或旋轉重掃' : '沒辨識到文字，可旋轉重掃或手動輸入', 1, 'error');
   }
 
@@ -685,17 +689,38 @@
     }
   }
 
+  function showCurrentImage() {
+    const src = currentImage.useOriginal ? currentImage.orig : currentImage.img;
+    editing.thumb = drawScaled(src, 1000, currentImage.rotation).toDataURL('image/jpeg', 0.8);
+    els.preview.src = editing.thumb;
+  }
+
   async function onFile(e) {
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!file) return;
     openEdit(null);
+    const origBtn = $('btn-original');
+    origBtn.hidden = true;
     try {
-      const img = await loadImage(file);
-      editing.thumb = drawScaled(img, 900).toDataURL('image/jpeg', 0.78);
-      els.preview.src = editing.thumb;
+      const orig = await loadImage(file);
+      let img = orig;
+      let enhanced = false;
+      if (settings.enhance !== false) {
+        try {
+          const r = CardEnhance.enhance(orig);
+          img = r.canvas;
+          enhanced = true;
+          if (!r.cropped) toast('沒找到名片邊緣，只做光線優化', 2600);
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      currentImage = { img, orig, rotation: 0, useOriginal: false, autoFilled: new Set() };
+      origBtn.hidden = !enhanced;
+      origBtn.textContent = '看原圖';
+      showCurrentImage();
       els.previewWrap.hidden = false;
-      currentImage = { img, rotation: 0, autoFilled: new Set() };
       runOcr();
     } catch (err) {
       toast(err.message || '無法讀取圖片');
@@ -705,10 +730,19 @@
   function onRotate() {
     if (!currentImage) return;
     currentImage.rotation = (currentImage.rotation + 90) % 360;
-    editing.thumb = drawScaled(currentImage.img, 900, currentImage.rotation).toDataURL('image/jpeg', 0.78);
-    els.preview.src = editing.thumb;
+    showCurrentImage();
     runOcr();
   }
+
+  // 優化後的照片和原圖切換，切換後重新辨識
+  function onToggleOriginal() {
+    if (!currentImage) return;
+    currentImage.useOriginal = !currentImage.useOriginal;
+    $('btn-original').textContent = currentImage.useOriginal ? '用優化圖' : '看原圖';
+    showCurrentImage();
+    runOcr();
+  }
+  $('btn-original').addEventListener('click', onToggleOriginal);
 
   // 使用者手動改過的欄位就不再標示為自動填入
   els.form.addEventListener('input', (e) => {
