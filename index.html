@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>名片掃描</title>
+  <meta name="description" content="拍照掃描名片，資料只存在你的手機上，可一鍵匯出 CSV。">
+  <meta name="theme-color" content="#1f4e79">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="名片掃描">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 名片列表 -->
+  <section id="view-list" class="view">
+    <header class="topbar">
+      <div>
+        <h1>名片夾</h1>
+        <p class="sub" id="count">0 張名片</p>
+      </div>
+      <button class="btn ghost" id="btn-export" type="button">匯出 CSV</button>
+    </header>
+
+    <div class="search">
+      <input id="search" type="search" placeholder="搜尋姓名、公司、電話…" autocomplete="off">
+    </div>
+
+    <ul id="list" class="list"></ul>
+
+    <div id="empty" class="empty" hidden>
+      <p class="empty-title">還沒有名片</p>
+      <p>按下方「拍名片」開始，第一次辨識需要下載約 5MB 的中英文字庫，之後可離線使用。</p>
+    </div>
+
+    <p class="privacy">🔒 名片照片與資料只存在這支手機，不會上傳。換手機或清除 Safari 資料前請先匯出 CSV。</p>
+
+    <nav class="actions">
+      <label class="btn primary big">
+        📷 拍名片
+        <input id="file-camera" type="file" accept="image/*" capture="environment" hidden>
+      </label>
+      <label class="btn secondary">
+        從相簿
+        <input id="file-photo" type="file" accept="image/*" hidden>
+      </label>
+      <button class="btn secondary" id="btn-manual" type="button">手動</button>
+    </nav>
+  </section>
+
+  <!-- 新增 / 編輯 -->
+  <section id="view-edit" class="view" hidden>
+    <header class="topbar">
+      <button class="btn ghost" id="btn-cancel" type="button">取消</button>
+      <h1 id="edit-title">新名片</h1>
+      <button class="btn ghost strong" id="btn-save" type="button">儲存</button>
+    </header>
+
+    <div class="preview-wrap" id="preview-wrap" hidden>
+      <img id="preview" alt="名片照片">
+      <div class="preview-tools">
+        <button class="btn small" id="btn-rotate" type="button">↻ 旋轉後重新辨識</button>
+      </div>
+    </div>
+
+    <div id="ocr-status" class="ocr-status" hidden>
+      <div class="bar"><div id="ocr-bar"></div></div>
+      <p id="ocr-msg">準備中…</p>
+    </div>
+
+    <form id="form" class="form" autocomplete="off">
+      <label>姓名<input name="name"></label>
+      <label>英文姓名<input name="nameEn"></label>
+      <label>公司<input name="company"></label>
+      <label>部門<input name="department"></label>
+      <label>職稱<input name="title"></label>
+      <label>手機<input name="mobile" type="tel"></label>
+      <label>電話<input name="phone" type="tel"></label>
+      <label>傳真<input name="fax" type="tel"></label>
+      <label>Email<input name="email" type="email" autocapitalize="off"></label>
+      <label>網址<input name="website" type="url" autocapitalize="off"></label>
+      <label>地址<textarea name="address" rows="2"></textarea></label>
+      <label>備註<textarea name="note" rows="3" placeholder="例如：在哪裡認識、談了什麼"></textarea></label>
+    </form>
+
+    <details class="raw" id="raw-wrap" hidden>
+      <summary>辨識原文（可複製貼到欄位）</summary>
+      <pre id="raw"></pre>
+    </details>
+
+    <div class="danger-zone" id="danger" hidden>
+      <button class="btn danger" id="btn-delete" type="button">刪除這張名片</button>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/tesseract.min.js"></script>
+  <script src="parser.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
