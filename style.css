@@ -341,3 +341,4 @@ svg { width: 22px; height: 22px; flex: none; }
 .test-result dt { color: var(--text-2); }
 .test-result dd { margin: 0; color: var(--text); word-break: break-all; }
 .row.action:disabled { opacity: .45; }
+.form .row .fixed { flex: 1; text-align: right; color: var(--text-2); font-size: 17px; }

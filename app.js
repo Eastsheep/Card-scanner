@@ -61,7 +61,7 @@
 
   // ---------- 設定（只存在這支手機） ----------
   const SETTINGS_KEY = 'card-scanner-settings';
-  let settings = { mode: 'local', provider: 'deepseek', apiKey: '', model: CardAI.DEFAULT_MODEL, dsKey: '', dsModel: CardAI.DEEPSEEK_DEFAULT_MODEL, dsModels: [] };
+  let settings = { mode: 'local', provider: 'deepseek', apiKey: '', model: CardAI.DEFAULT_MODEL, dsKey: '' };
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) { /* 無痕模式等 */ }
   function saveSettings() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
@@ -90,7 +90,6 @@
     }
     sel.value = settings.model;
     $('set-ds-key').value = settings.dsKey;
-    renderDsModels();
     $('set-provider').value = settings.provider;
     syncSettingsUI();
     show('settings');
@@ -103,35 +102,6 @@
   }
   $('set-provider').addEventListener('change', (e) => { settings.provider = e.target.value; syncSettingsUI(); saveSettings(); });
   $('set-ds-key').addEventListener('change', (e) => { settings.dsKey = e.target.value.trim(); saveSettings(); });
-  $('set-ds-model').addEventListener('change', (e) => { settings.dsModel = e.target.value; saveSettings(); });
-
-  function renderDsModels() {
-    const sel = $('set-ds-model');
-    const ids = Array.from(new Set([CardAI.DEEPSEEK_DEFAULT_MODEL, ...(settings.dsModels || []), settings.dsModel].filter(Boolean)));
-    sel.replaceChildren(...ids.map((id) => new Option(id === CardAI.DEEPSEEK_DEFAULT_MODEL ? id + '（建議）' : id, id)));
-    sel.value = settings.dsModel;
-  }
-
-  async function onLoadDsModels() {
-    const key = $('set-ds-key').value.trim();
-    if (!key) { toast('請先填 API Key'); return; }
-    const btn = $('btn-ds-models');
-    btn.disabled = true;
-    btn.querySelector('span').textContent = '載入中…';
-    try {
-      const ids = await CardAI.listDeepseekModels(key);
-      settings.dsKey = key;
-      settings.dsModels = ids;
-      saveSettings();
-      renderDsModels();
-      toast(`找到 ${ids.length} 個模型`);
-    } catch (e) {
-      toast(e.message, 3500);
-    } finally {
-      btn.disabled = false;
-      btn.querySelector('span').textContent = '從帳號載入可用模型';
-    }
-  }
 
   async function onTestAI() {
     settings.apiKey = $('set-key').value.trim();
@@ -140,7 +110,7 @@
     const box = $('test-result');
     const btn = $('btn-test-ai');
     if (!aiKey()) { toast('請先填 API Key'); return; }
-    const model = settings.provider === 'claude' ? settings.model : settings.dsModel;
+    const model = settings.provider === 'claude' ? settings.model : CardAI.DEEPSEEK_DEFAULT_MODEL;
     box.hidden = false;
     box.className = 'row test-result run';
     box.replaceChildren(el('div', 'head', `測試中：${providerLabel()} / ${model}…`));
@@ -174,7 +144,6 @@
     if (text != null) n.textContent = text;
     return n;
   }
-  $('btn-ds-models').addEventListener('click', onLoadDsModels);
   $('btn-test-ai').addEventListener('click', onTestAI);
   document.querySelectorAll('input[name=mode]').forEach((r) => r.addEventListener('change', () => {
     settings.mode = r.value;
@@ -186,7 +155,6 @@
   function leaveSettings() {
     settings.apiKey = $('set-key').value.trim();
     settings.dsKey = $('set-ds-key').value.trim();
-    settings.dsModel = $('set-ds-model').value || CardAI.DEEPSEEK_DEFAULT_MODEL;
     saveSettings();
     if (settings.mode === 'ai' && !aiKey()) toast('尚未填 API Key，會先用本機辨識');
     show('list');
@@ -652,7 +620,7 @@
     const provider = CardAI.PROVIDERS[settings.provider];
     const { fields } = await provider.extract({
       apiKey: aiKey(),
-      model: settings.provider === 'claude' ? settings.model : settings.dsModel,
+      model: settings.provider === 'claude' ? settings.model : CardAI.DEEPSEEK_DEFAULT_MODEL,
       imageBase64: jpeg.slice(jpeg.indexOf(',') + 1),
     });
     if (run !== ocrRun) return;
