@@ -201,9 +201,10 @@
 
   // ---------- OpenRouter（一把 Key 用多家模型） ----------
   const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
-  const OPENROUTER_DEFAULT_MODEL = 'google/gemini-2.5-flash';
-  // 常用、支援圖片的模型建議（實際可用清單會向 OpenRouter 讀取）
-  const OPENROUTER_SUGGEST = ['google/gemini-2.5-flash', 'openai/gpt-4o-mini', 'anthropic/claude-haiku-4.5', 'qwen/qwen2.5-vl-72b-instruct'];
+  const OPENROUTER_DEFAULT_MODEL = 'qwen/qwen2.5-vl-72b-instruct';
+  // 只用 DeepSeek 與 Qwen；讀不到線上清單時的備用選項
+  const OPENROUTER_VENDORS = ['deepseek/', 'qwen/'];
+  const OPENROUTER_SUGGEST = ['qwen/qwen2.5-vl-72b-instruct', 'qwen/qwen2.5-vl-32b-instruct'];
 
   function openrouterError(status, body) {
     const msg = (body && body.error && body.error.message) || '';
@@ -230,7 +231,7 @@
     if (!res.ok) throw new Error('讀取模型清單失敗');
     const json = await res.json();
     return ((json && json.data) || [])
-      .filter((m) => m.architecture && (m.architecture.input_modalities || []).includes('image'))
+      .filter((m) => OPENROUTER_VENDORS.some((v) => m.id.startsWith(v)) && m.architecture && (m.architecture.input_modalities || []).includes('image'))
       .map((m) => ({ id: m.id, name: m.name || m.id }))
       .sort((a, b) => a.id.localeCompare(b.id));
   }

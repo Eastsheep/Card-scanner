@@ -251,10 +251,9 @@
           <h3 class="group-title">OpenRouter API</h3>
           <div class="group form">
             <label class="row"><span>API Key</span><input id="set-or-key" type="password" placeholder="sk-or-…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-            <label class="row"><span>模型</span><input id="set-or-model" type="text" list="or-models" placeholder="google/gemini-2.5-flash" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-            <datalist id="or-models"></datalist>
+            <label class="row"><span>模型</span><select id="set-or-model"></select></label>
           </div>
-          <p class="hint">到 <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">OpenRouter</a> 建立 API Key 後貼上。一把 Key 可以用 Google、OpenAI、Anthropic 等多家模型，模型欄點一下會列出支援圖片的模型，也可以直接輸入模型 ID。照片會經 OpenRouter 傳給該模型的服務商處理，費用依模型而定。</p>
+          <p class="hint">到 <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">OpenRouter</a> 建立 API Key 後貼上。模型清單只列出能讀圖片的 DeepSeek 與 Qwen 模型（開啟設定時自動向 OpenRouter 更新）。照片會經 OpenRouter 傳給該模型的服務商處理，費用依模型而定。</p>
         </div>
 
         <div id="cl-settings">

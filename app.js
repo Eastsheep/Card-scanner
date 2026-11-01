@@ -64,6 +64,7 @@
   const SETTINGS_KEY = 'card-scanner-settings';
   let settings = { mode: 'local', provider: 'deepseek', apiKey: '', model: CardAI.DEFAULT_MODEL, dsKey: '', orKey: '', orModel: CardAI.OPENROUTER_DEFAULT_MODEL, enhance: true };
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) { /* 無痕模式等 */ }
+  if (!/^(deepseek|qwen)\//.test(settings.orModel || '')) settings.orModel = CardAI.OPENROUTER_DEFAULT_MODEL; // OpenRouter 只用 DeepSeek / Qwen
   function saveSettings() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
     renderFootnote();
@@ -74,18 +75,33 @@
     settings.apiKey = $('set-key').value.trim();
     settings.dsKey = $('set-ds-key').value.trim();
     settings.orKey = $('set-or-key').value.trim();
-    settings.orModel = $('set-or-model').value.trim() || CardAI.OPENROUTER_DEFAULT_MODEL;
+    settings.orModel = $('set-or-model').value || settings.orModel || CardAI.OPENROUTER_DEFAULT_MODEL;
   }
   let orModelsLoaded = false;
+  function fillOrModels(list) {
+    const sel = $('set-or-model');
+    const cur = settings.orModel || CardAI.OPENROUTER_DEFAULT_MODEL;
+    const items = list.slice();
+    if (!items.some((m) => m.id === cur)) items.unshift({ id: cur, name: cur });
+    // DeepSeek 一組、Qwen 一組
+    sel.replaceChildren();
+    [['DeepSeek', 'deepseek/'], ['Qwen', 'qwen/'], ['其他', '']].forEach(([label, prefix]) => {
+      const opts = items.filter((m) => (prefix ? m.id.startsWith(prefix) : !/^(deepseek|qwen)\//.test(m.id)));
+      if (!opts.length) return;
+      const g = document.createElement('optgroup');
+      g.label = label;
+      opts.forEach((m) => g.append(new Option(m.id.replace(/^[^/]+\//, ''), m.id)));
+      sel.append(g);
+    });
+    sel.value = cur;
+  }
   async function loadOrModels() {
-    const dl = $('or-models');
-    if (!dl.options.length) CardAI.OPENROUTER_SUGGEST.forEach((id) => dl.append(new Option(id, id)));
+    if (!$('set-or-model').options.length) fillOrModels(CardAI.OPENROUTER_SUGGEST.map((id) => ({ id })));
     if (orModelsLoaded) return;
     orModelsLoaded = true;
     try {
       const list = await CardAI.listOpenrouterVisionModels();
-      const seen = new Set(CardAI.OPENROUTER_SUGGEST);
-      list.forEach((m) => { if (!seen.has(m.id)) dl.append(new Option(m.name, m.id)); });
+      if (list.length) fillOrModels(list);
     } catch (e) { orModelsLoaded = false; }
   }
   const useAI = () => settings.mode === 'ai' && !!aiKey();
@@ -111,7 +127,6 @@
     sel.value = settings.model;
     $('set-ds-key').value = settings.dsKey;
     $('set-or-key').value = settings.orKey || '';
-    $('set-or-model').value = settings.orModel || CardAI.OPENROUTER_DEFAULT_MODEL;
     $('set-provider').value = settings.provider;
     $('set-enhance').checked = settings.enhance !== false;
     syncSettingsUI();
