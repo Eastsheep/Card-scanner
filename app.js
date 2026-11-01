@@ -62,15 +62,34 @@
 
   // ---------- 設定（只存在這支手機） ----------
   const SETTINGS_KEY = 'card-scanner-settings';
-  let settings = { mode: 'local', provider: 'deepseek', apiKey: '', model: CardAI.DEFAULT_MODEL, dsKey: '', enhance: true };
+  let settings = { mode: 'local', provider: 'deepseek', apiKey: '', model: CardAI.DEFAULT_MODEL, dsKey: '', orKey: '', orModel: CardAI.OPENROUTER_DEFAULT_MODEL, enhance: true };
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) { /* 無痕模式等 */ }
   function saveSettings() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
     renderFootnote();
   }
-  const aiKey = () => (settings.provider === 'claude' ? settings.apiKey : settings.dsKey);
+  const aiKey = () => ({ claude: settings.apiKey, openrouter: settings.orKey }[settings.provider] ?? settings.dsKey);
+  const aiModel = () => ({ claude: settings.model, openrouter: settings.orModel || CardAI.OPENROUTER_DEFAULT_MODEL }[settings.provider] ?? CardAI.DEEPSEEK_DEFAULT_MODEL);
+  function readKeyInputs() {
+    settings.apiKey = $('set-key').value.trim();
+    settings.dsKey = $('set-ds-key').value.trim();
+    settings.orKey = $('set-or-key').value.trim();
+    settings.orModel = $('set-or-model').value.trim() || CardAI.OPENROUTER_DEFAULT_MODEL;
+  }
+  let orModelsLoaded = false;
+  async function loadOrModels() {
+    const dl = $('or-models');
+    if (!dl.options.length) CardAI.OPENROUTER_SUGGEST.forEach((id) => dl.append(new Option(id, id)));
+    if (orModelsLoaded) return;
+    orModelsLoaded = true;
+    try {
+      const list = await CardAI.listOpenrouterVisionModels();
+      const seen = new Set(CardAI.OPENROUTER_SUGGEST);
+      list.forEach((m) => { if (!seen.has(m.id)) dl.append(new Option(m.name, m.id)); });
+    } catch (e) { orModelsLoaded = false; }
+  }
   const useAI = () => settings.mode === 'ai' && !!aiKey();
-  const providerLabel = () => CardAI.PROVIDERS[settings.provider].label;
+  const providerLabel = () => (CardAI.PROVIDERS[settings.provider] || CardAI.PROVIDERS.deepseek).label;
 
   function renderFootnote() {
     const f = $('list-foot');
@@ -91,6 +110,8 @@
     }
     sel.value = settings.model;
     $('set-ds-key').value = settings.dsKey;
+    $('set-or-key').value = settings.orKey || '';
+    $('set-or-model').value = settings.orModel || CardAI.OPENROUTER_DEFAULT_MODEL;
     $('set-provider').value = settings.provider;
     $('set-enhance').checked = settings.enhance !== false;
     syncSettingsUI();
@@ -101,19 +122,22 @@
     $('ai-settings').hidden = settings.mode !== 'ai';
     $('ds-settings').hidden = settings.provider !== 'deepseek';
     $('cl-settings').hidden = settings.provider !== 'claude';
+    $('or-settings').hidden = settings.provider !== 'openrouter';
+    if (settings.provider === 'openrouter' && settings.mode === 'ai') loadOrModels();
   }
   $('set-enhance').addEventListener('change', (e) => { settings.enhance = e.target.checked; saveSettings(); });
   $('set-provider').addEventListener('change', (e) => { settings.provider = e.target.value; syncSettingsUI(); saveSettings(); });
   $('set-ds-key').addEventListener('change', (e) => { settings.dsKey = e.target.value.trim(); saveSettings(); });
+  $('set-or-key').addEventListener('change', () => { readKeyInputs(); saveSettings(); });
+  $('set-or-model').addEventListener('change', () => { readKeyInputs(); saveSettings(); });
 
   async function onTestAI() {
-    settings.apiKey = $('set-key').value.trim();
-    settings.dsKey = $('set-ds-key').value.trim();
+    readKeyInputs();
     saveSettings();
     const box = $('test-result');
     const btn = $('btn-test-ai');
     if (!aiKey()) { toast('請先填 API Key'); return; }
-    const model = settings.provider === 'claude' ? settings.model : CardAI.DEEPSEEK_DEFAULT_MODEL;
+    const model = aiModel();
     box.hidden = false;
     box.className = 'row test-result run';
     box.replaceChildren(el('div', 'head', `測試中：${providerLabel()} / ${model}…`));
@@ -156,8 +180,7 @@
   $('set-key').addEventListener('change', (e) => { settings.apiKey = e.target.value.trim(); saveSettings(); });
   $('set-model').addEventListener('change', (e) => { settings.model = e.target.value; saveSettings(); });
   function leaveSettings() {
-    settings.apiKey = $('set-key').value.trim();
-    settings.dsKey = $('set-ds-key').value.trim();
+    readKeyInputs();
     saveSettings();
     if (settings.mode === 'ai' && !aiKey()) toast('尚未填 API Key，會先用本機辨識');
     show('list');
@@ -622,10 +645,10 @@
     els.previewWrap.classList.add('ai');
     setStatus(`${providerLabel()} 辨識中…`, 0.25, '', { ai: true, spin: true });
     const jpeg = drawScaled(ocrSource(), 1568, currentImage.rotation).toDataURL('image/jpeg', 0.85);
-    const provider = CardAI.PROVIDERS[settings.provider];
+    const provider = CardAI.PROVIDERS[settings.provider] || CardAI.PROVIDERS.deepseek;
     const { fields } = await provider.extract({
       apiKey: aiKey(),
-      model: settings.provider === 'claude' ? settings.model : CardAI.DEEPSEEK_DEFAULT_MODEL,
+      model: aiModel(),
       imageBase64: jpeg.slice(jpeg.indexOf(',') + 1),
     });
     if (run !== ocrRun) return;

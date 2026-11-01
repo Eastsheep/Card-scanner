@@ -142,25 +142,26 @@
     throw new Error('AI 回傳格式無法解析');
   }
 
-  async function postDeepseek(apiKey, body) {
+  // OpenAI 相容格式（DeepSeek、OpenRouter 共用）
+  async function postChat(url, headers, body, name) {
     let res;
     try {
-      res = await fetch(DEEPSEEK_URL, {
+      res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+        headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
         body: JSON.stringify(body),
       });
     } catch (e) {
-      throw new Error('無法連線 DeepSeek（網路問題或瀏覽器擋住跨網域請求）');
+      throw new Error(`無法連線 ${name}（網路問題或瀏覽器擋住跨網域請求）`);
     }
     let json = null;
     try { json = await res.json(); } catch (e) { /* ignore */ }
     return { res, json };
   }
 
-  async function extractDeepseek({ apiKey, model, imageBase64 }) {
+  async function extractChat({ url, headers, name, errorFn, model, imageBase64 }) {
     const body = {
-      model: model || DEEPSEEK_DEFAULT_MODEL,
+      model,
       max_tokens: 2000,
       response_format: { type: 'json_object' },
       messages: [
@@ -174,13 +175,14 @@
         },
       ],
     };
-    let { res, json } = await postDeepseek(apiKey, body);
+    let { res, json } = await postChat(url, headers, body, name);
     // 有些模型不接受 JSON mode，拿掉再試一次
     if (res.status === 400 || res.status === 422) {
       delete body.response_format;
-      ({ res, json } = await postDeepseek(apiKey, body));
+      ({ res, json } = await postChat(url, headers, body, name));
     }
-    if (!res.ok) throw new Error(deepseekError(res.status, json));
+    if (!res.ok) throw new Error(errorFn(res.status, json));
+    if (json && json.error) throw new Error(errorFn(json.error.code || 500, json));
     const choice = json && json.choices && json.choices[0];
     if (!choice || !choice.message) throw new Error('AI 沒有回傳資料');
     if (choice.finish_reason === 'length') throw new Error('AI 回應被截斷，請重試');
@@ -188,6 +190,49 @@
     const out = {};
     FIELD_KEYS.forEach((k) => { out[k] = typeof data[k] === 'string' ? data[k].trim() : ''; });
     return { fields: out, model: json.model, usage: json.usage };
+  }
+
+  function extractDeepseek({ apiKey, model, imageBase64 }) {
+    return extractChat({
+      url: DEEPSEEK_URL, headers: { Authorization: 'Bearer ' + apiKey }, name: 'DeepSeek', errorFn: deepseekError,
+      model: model || DEEPSEEK_DEFAULT_MODEL, imageBase64,
+    });
+  }
+
+  // ---------- OpenRouter（一把 Key 用多家模型） ----------
+  const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
+  const OPENROUTER_DEFAULT_MODEL = 'google/gemini-2.5-flash';
+  // 常用、支援圖片的模型建議（實際可用清單會向 OpenRouter 讀取）
+  const OPENROUTER_SUGGEST = ['google/gemini-2.5-flash', 'openai/gpt-4o-mini', 'anthropic/claude-haiku-4.5', 'qwen/qwen2.5-vl-72b-instruct'];
+
+  function openrouterError(status, body) {
+    const msg = (body && body.error && body.error.message) || '';
+    if (status === 401) return 'OpenRouter API Key 無效，請到設定檢查';
+    if (status === 402) return 'OpenRouter 額度不足，請先儲值';
+    if (status === 404) return `OpenRouter 找不到這個模型或它不支援圖片${msg ? '：' + msg : ''}`;
+    if (status === 429) return 'OpenRouter 呼叫太頻繁，請稍後再試';
+    if (status >= 500) return 'OpenRouter 或模型服務暫時忙碌，請稍後再試';
+    return `OpenRouter 錯誤 ${status}${msg ? '：' + msg : ''}`;
+  }
+
+  function extractOpenrouter({ apiKey, model, imageBase64 }) {
+    return extractChat({
+      url: OPENROUTER_BASE + '/chat/completions',
+      headers: { Authorization: 'Bearer ' + apiKey, 'HTTP-Referer': location.origin + location.pathname, 'X-Title': 'Card Scanner' },
+      name: 'OpenRouter', errorFn: openrouterError,
+      model: model || OPENROUTER_DEFAULT_MODEL, imageBase64,
+    });
+  }
+
+  // 讀取 OpenRouter 上支援圖片輸入的模型（公開清單，不需 Key）
+  async function listOpenrouterVisionModels() {
+    const res = await fetch(OPENROUTER_BASE + '/models');
+    if (!res.ok) throw new Error('讀取模型清單失敗');
+    const json = await res.json();
+    return ((json && json.data) || [])
+      .filter((m) => m.architecture && (m.architecture.input_modalities || []).includes('image'))
+      .map((m) => ({ id: m.id, name: m.name || m.id }))
+      .sort((a, b) => a.id.localeCompare(b.id));
   }
 
   // 列出帳號可用的 DeepSeek 模型
@@ -235,8 +280,9 @@
 
   const PROVIDERS = {
     deepseek: { label: 'DeepSeek', extract: extractDeepseek, defaultModel: DEEPSEEK_DEFAULT_MODEL },
+    openrouter: { label: 'OpenRouter', extract: extractOpenrouter, defaultModel: OPENROUTER_DEFAULT_MODEL },
     claude: { label: 'Claude', extract, defaultModel: DEFAULT_MODEL },
   };
 
-  root.CardAI = { extract, MODELS, DEFAULT_MODEL, PROVIDERS, DEEPSEEK_DEFAULT_MODEL, listDeepseekModels, testProvider };
+  root.CardAI = { extract, MODELS, DEFAULT_MODEL, PROVIDERS, DEEPSEEK_DEFAULT_MODEL, listDeepseekModels, testProvider, OPENROUTER_DEFAULT_MODEL, OPENROUTER_SUGGEST, listOpenrouterVisionModels };
 })(self);

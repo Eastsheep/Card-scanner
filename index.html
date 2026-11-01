@@ -236,7 +236,7 @@
       <div id="ai-settings">
         <h3 class="group-title">AI 服務</h3>
         <div class="group form">
-          <label class="row"><span>服務商</span><select id="set-provider"><option value="deepseek">DeepSeek</option><option value="claude">Claude（Anthropic）</option></select></label>
+          <label class="row"><span>服務商</span><select id="set-provider"><option value="deepseek">DeepSeek</option><option value="openrouter">OpenRouter</option><option value="claude">Claude（Anthropic）</option></select></label>
         </div>
 
         <div id="ds-settings">
@@ -245,6 +245,16 @@
             <label class="row"><span>API Key</span><input id="set-ds-key" type="password" placeholder="sk-…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
           </div>
           <p class="hint">到 <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">DeepSeek 開放平台</a> 建立 API Key 後貼上。照片會傳到 DeepSeek 伺服器處理。費用估計每張約 NT$0.05 以內，實際以帳單為準。</p>
+        </div>
+
+        <div id="or-settings">
+          <h3 class="group-title">OpenRouter API</h3>
+          <div class="group form">
+            <label class="row"><span>API Key</span><input id="set-or-key" type="password" placeholder="sk-or-…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+            <label class="row"><span>模型</span><input id="set-or-model" type="text" list="or-models" placeholder="google/gemini-2.5-flash" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+            <datalist id="or-models"></datalist>
+          </div>
+          <p class="hint">到 <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">OpenRouter</a> 建立 API Key 後貼上。一把 Key 可以用 Google、OpenAI、Anthropic 等多家模型，模型欄點一下會列出支援圖片的模型，也可以直接輸入模型 ID。照片會經 OpenRouter 傳給該模型的服務商處理，費用依模型而定。</p>
         </div>
 
         <div id="cl-settings">
