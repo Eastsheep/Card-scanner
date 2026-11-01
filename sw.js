@@ -1,5 +1,5 @@
 // 版本號改了就會更新快取
-const VERSION = 'v18';
+const VERSION = 'v19';
 const SHELL = `shell-${VERSION}`;
 const VENDOR = 'vendor-v1'; // 辨識引擎與字庫很大，版本獨立，避免每次更新重新下載
 const SHELL_FILES = [
@@ -8,7 +8,7 @@ const SHELL_FILES = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -37,9 +37,9 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // 其他：網路優先，離線時用快取
+  // 其他：網路優先（略過瀏覽器 HTTP 快取，避免拿到新舊混合的檔案），離線時用快取
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' })
       .then((res) => {
         if (res.ok) caches.open(SHELL).then((c) => c.put(e.request, res.clone()));
         return res;

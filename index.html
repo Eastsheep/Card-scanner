@@ -251,7 +251,7 @@
           <h3 class="group-title">OpenRouter API</h3>
           <div class="group form">
             <label class="row"><span>API Key</span><input id="set-or-key" type="password" placeholder="sk-or-…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-            <label class="row"><span>模型</span><select id="set-or-model"></select></label>
+            <label class="row"><span>模型</span><select id="set-or-model"><optgroup label="Qwen"><option value="qwen/qwen2.5-vl-72b-instruct">qwen2.5-vl-72b-instruct</option><option value="qwen/qwen2.5-vl-32b-instruct">qwen2.5-vl-32b-instruct</option></optgroup></select></label>
           </div>
           <p class="hint">到 <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">OpenRouter</a> 建立 API Key 後貼上。模型清單只列出能讀圖片的 DeepSeek 與 Qwen 模型（開啟設定時自動向 OpenRouter 更新）。照片會經 OpenRouter 傳給該模型的服務商處理，費用依模型而定。</p>
         </div>

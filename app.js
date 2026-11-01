@@ -96,7 +96,7 @@
     sel.value = cur;
   }
   async function loadOrModels() {
-    if (!$('set-or-model').options.length) fillOrModels(CardAI.OPENROUTER_SUGGEST.map((id) => ({ id })));
+    if (!orModelsLoaded) fillOrModels((CardAI.OPENROUTER_SUGGEST || []).map((id) => ({ id })));
     if (orModelsLoaded) return;
     orModelsLoaded = true;
     try {
@@ -138,7 +138,7 @@
     $('ds-settings').hidden = settings.provider !== 'deepseek';
     $('cl-settings').hidden = settings.provider !== 'claude';
     $('or-settings').hidden = settings.provider !== 'openrouter';
-    if (settings.provider === 'openrouter' && settings.mode === 'ai') loadOrModels();
+    if (settings.provider === 'openrouter') loadOrModels();
   }
   $('set-enhance').addEventListener('change', (e) => { settings.enhance = e.target.checked; saveSettings(); });
   $('set-provider').addEventListener('change', (e) => { settings.provider = e.target.value; syncSettingsUI(); saveSettings(); });
