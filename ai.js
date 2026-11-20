@@ -202,9 +202,9 @@
   // ---------- OpenRouter（一把 Key 用多家模型） ----------
   const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
   const OPENROUTER_DEFAULT_MODEL = 'qwen/qwen2.5-vl-72b-instruct';
-  // 只用 DeepSeek 與 Qwen；讀不到線上清單時的備用選項
-  const OPENROUTER_VENDORS = ['deepseek/', 'qwen/'];
-  const OPENROUTER_SUGGEST = ['qwen/qwen2.5-vl-72b-instruct', 'qwen/qwen2.5-vl-32b-instruct'];
+  // 只用 DeepSeek、Qwen 與 Meta（Llama）；讀不到線上清單時的備用選項
+  const OPENROUTER_VENDORS = ['deepseek/', 'qwen/', 'meta-llama/'];
+  const OPENROUTER_SUGGEST = ['qwen/qwen2.5-vl-72b-instruct', 'qwen/qwen2.5-vl-32b-instruct', 'meta-llama/llama-4-maverick', 'meta-llama/llama-4-scout'];
 
   function openrouterError(status, body) {
     const msg = (body && body.error && body.error.message) || '';

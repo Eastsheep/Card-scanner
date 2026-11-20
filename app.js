@@ -64,7 +64,7 @@
   const SETTINGS_KEY = 'card-scanner-settings';
   let settings = { mode: 'local', provider: 'deepseek', apiKey: '', model: CardAI.DEFAULT_MODEL, dsKey: '', orKey: '', orModel: CardAI.OPENROUTER_DEFAULT_MODEL, enhance: true };
   try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (e) { /* 無痕模式等 */ }
-  if (!/^(deepseek|qwen)\//.test(settings.orModel || '')) settings.orModel = CardAI.OPENROUTER_DEFAULT_MODEL; // OpenRouter 只用 DeepSeek / Qwen
+  if (!/^(deepseek|qwen|meta-llama)\//.test(settings.orModel || '')) settings.orModel = CardAI.OPENROUTER_DEFAULT_MODEL; // OpenRouter 只用 DeepSeek / Qwen / Meta
   function saveSettings() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
     renderFootnote();
@@ -83,10 +83,10 @@
     const cur = settings.orModel || CardAI.OPENROUTER_DEFAULT_MODEL;
     const items = list.slice();
     if (!items.some((m) => m.id === cur)) items.unshift({ id: cur, name: cur });
-    // DeepSeek 一組、Qwen 一組
+    // DeepSeek、Qwen、Meta 各一組
     sel.replaceChildren();
-    [['DeepSeek', 'deepseek/'], ['Qwen', 'qwen/'], ['其他', '']].forEach(([label, prefix]) => {
-      const opts = items.filter((m) => (prefix ? m.id.startsWith(prefix) : !/^(deepseek|qwen)\//.test(m.id)));
+    [['DeepSeek', 'deepseek/'], ['Qwen', 'qwen/'], ['Meta（Llama）', 'meta-llama/'], ['其他', '']].forEach(([label, prefix]) => {
+      const opts = items.filter((m) => (prefix ? m.id.startsWith(prefix) : !/^(deepseek|qwen|meta-llama)\//.test(m.id)));
       if (!opts.length) return;
       const g = document.createElement('optgroup');
       g.label = label;
