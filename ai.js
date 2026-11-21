@@ -202,9 +202,9 @@
   // ---------- OpenRouter（一把 Key 用多家模型） ----------
   const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
   const OPENROUTER_DEFAULT_MODEL = 'qwen/qwen2.5-vl-72b-instruct';
-  // 只用 DeepSeek、Qwen 與 Meta（Llama）；讀不到線上清單時的備用選項
-  const OPENROUTER_VENDORS = ['deepseek/', 'qwen/', 'meta-llama/'];
-  const OPENROUTER_SUGGEST = ['qwen/qwen2.5-vl-72b-instruct', 'qwen/qwen2.5-vl-32b-instruct', 'meta-llama/llama-4-maverick', 'meta-llama/llama-4-scout'];
+  // 只用 DeepSeek、Qwen 與 Meta（Muse、Llama）；讀不到線上清單時的備用選項
+  const OPENROUTER_VENDORS = ['deepseek/', 'qwen/', 'meta/', 'meta-llama/'];
+  const OPENROUTER_SUGGEST = ['qwen/qwen2.5-vl-72b-instruct', 'qwen/qwen2.5-vl-32b-instruct', 'meta/muse-ember', 'meta-llama/llama-4-maverick', 'meta-llama/llama-4-scout'];
 
   function openrouterError(status, body) {
     const msg = (body && body.error && body.error.message) || '';
@@ -231,7 +231,8 @@
     if (!res.ok) throw new Error('讀取模型清單失敗');
     const json = await res.json();
     return ((json && json.data) || [])
-      .filter((m) => OPENROUTER_VENDORS.some((v) => m.id.startsWith(v)) && m.architecture && (m.architecture.input_modalities || []).includes('image'))
+      .filter((m) => OPENROUTER_VENDORS.some((v) => m.id.startsWith(v)) && m.architecture && (m.architecture.input_modalities || []).includes('image')
+        && (m.architecture.output_modalities || ['text']).includes('text')) // 排除只會產生圖片的模型（如 muse-image）
       .map((m) => ({ id: m.id, name: m.name || m.id }))
       .sort((a, b) => a.id.localeCompare(b.id));
   }
